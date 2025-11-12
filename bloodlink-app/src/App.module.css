@@ -1,0 +1,19 @@
+/* src/App.module.css */
+.appContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem 1rem;
+  width: 100%;
+}
+
+.mainContent {
+  display: flex;
+  justify-content: center;
+  align-items: stretch; /* Makes cards same height */
+  gap: 2.5rem;
+  width: 100%;
+  max-width: 1500px; /* INCREASED from 1000px for 3 cards */
+  margin: 2rem 0;
+  flex-wrap: wrap; /* Allows cards to stack on small screens */
+}

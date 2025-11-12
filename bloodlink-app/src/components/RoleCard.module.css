@@ -1,0 +1,73 @@
+/* src/components/RoleCard.module.css */
+.card {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+  padding: 2rem;
+  flex-basis: 400px; /* Base width */
+  flex-grow: 1;
+  max-width: 450px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #eee;
+}
+
+.icon {
+  font-size: 3rem;
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  text-align: center;
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+}
+
+.description {
+  font-size: 0.95rem;
+  color: #666;
+  text-align: center;
+  line-height: 1.5;
+  margin-bottom: 1.5rem;
+  min-height: 60px; /* Ensures consistent alignment */
+}
+
+.features {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 2rem 0;
+  flex-grow: 1; /* Pushes button to the bottom */
+}
+
+.features li {
+  display: flex;
+  align-items: center;
+  font-size: 0.9rem;
+  color: #444;
+  margin-bottom: 0.75rem;
+}
+
+.checkIcon {
+  color: #22c55e; /* Green check */
+  margin-right: 10px;
+  font-size: 0.8rem;
+}
+
+.button {
+  width: 100%;
+  padding: 0.8rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.button:hover {
+  opacity: 0.85;
+}
