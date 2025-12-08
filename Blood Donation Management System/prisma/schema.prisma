@@ -1,0 +1,60 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+
+}
+
+model Donor {
+  id             String    @id @default(uuid())
+  fullName       String
+  bloodType      String
+  lastDonation   DateTime?
+  location       String?
+  availability   String?
+  totalDonations Int       @default(0)
+  impactScore    Int       @default(0)
+  donations      Donation[]
+}
+
+model Hospital {
+  id        String    @id @default(uuid())
+  name      String
+  location  String?
+  requests  Request[]
+  donations Donation[]
+  
+}
+
+model Request {
+  id          String   @id @default(uuid())
+  hospital    Hospital @relation(fields: [hospitalId], references: [id])
+  hospitalId  String
+  patient     String?
+  bloodType   String
+  urgency     String
+  unitsNeeded Int
+  status      String
+  requestedAt DateTime @default(now())
+}
+
+model Donation {
+  id           String   @id @default(uuid())
+  donor        Donor    @relation(fields: [donorId], references: [id])
+  donorId      String
+  hospital     Hospital @relation(fields: [hospitalId], references: [id])
+  hospitalId   String
+  units        Int
+  donationDate DateTime @default(now())
+  status       String
+}
+
+model Inventory {
+  id                String   @id @default(uuid())
+  bloodType         String
+  unitsAvailable    Int
+  criticalThreshold Int
+  lastUpdated       DateTime @default(now())
+}
