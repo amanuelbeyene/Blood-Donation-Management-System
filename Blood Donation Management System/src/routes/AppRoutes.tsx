@@ -24,6 +24,7 @@ import HospitalView from '../views/pages/Hospital/HospitalView';
 import EmergencyRequestView from '../views/pages/Hospital/EmergencyRequestView';
 import MyRequestsView from '../views/pages/Hospital/MyRequestsView';
 import HospitalFindDonorsView from '../views/pages/Hospital/HospitalFindDonorsView';
+import AwardsView from '../views/pages/Awards/AwardsView';
 import LoginView from '../views/pages/Auth/LoginView';
 import RegisterView from '../views/pages/Auth/RegisterView';
 
@@ -33,6 +34,7 @@ const AppRoutes = () => (
       <Route path="/" element={<LandingView />} />
       <Route path="/donors" element={<DonorDirectoryView />} />
       <Route path="/donor-dashboard" element={<DonorDashboardView />} />
+      <Route path="/awards" element={<AwardsView />} />
       <Route path="/requests" element={<RecipientRequestsView />} />
       <Route path="/inventory" element={<InventoryView />} />
       <Route path="/history" element={<DonationHistoryView />} />
@@ -60,6 +62,7 @@ const AppRoutes = () => (
     </Route>
   </Routes>
 );
+
 
 export default AppRoutes;
 

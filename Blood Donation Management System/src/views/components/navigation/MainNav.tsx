@@ -4,7 +4,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 const donorNavItems = [
   { path: '/donor-dashboard', label: 'Dashboard' },
   { path: '/register', label: 'Register' },
-  { path: '/donors', label: 'Find Donors' },
+  { path: '/awards', label: 'Awards' },
 ];
 
 const hospitalNavItems = [
@@ -19,10 +19,11 @@ const MainNav = () => {
   const location = useLocation();
 
   // Show "Donor Mode" only on donor pages, not on main page
-  const isDonorPage = location.pathname !== '/' && 
-    (location.pathname.startsWith('/donor') || 
-     location.pathname.startsWith('/register') || 
-     location.pathname.startsWith('/donors'));
+  const isDonorPage = location.pathname !== '/' &&
+    (location.pathname.startsWith('/donor') ||
+     location.pathname.startsWith('/register') ||
+     location.pathname.startsWith('/donors') ||
+     location.pathname.startsWith('/awards'));
 
   // Show "Hospital Mode" on hospital pages
   const isHospitalPage = location.pathname.startsWith('/hospital');
