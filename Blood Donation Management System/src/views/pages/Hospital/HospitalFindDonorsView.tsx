@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { fetchDonors } from '../../../controllers/donorController';
 import type { Donor, BloodType } from '../../../models/Donor';
 
@@ -6,21 +6,32 @@ const bloodTypes: BloodType[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-
 
 const HospitalFindDonorsView = () => {
   const [donors, setDonors] = useState<Donor[]>([]);
-  const [filteredDonors, setFilteredDonors] = useState<Donor[]>([]);
   const [selectedBloodType, setSelectedBloodType] = useState<BloodType | 'All'>('All');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [searchName, setSearchName] = useState('');
+  const [searchPhone, setSearchPhone] = useState('');
+  const [geoQuery, setGeoQuery] = useState('');
 
   useEffect(() => {
     fetchDonors().then(setDonors);
   }, []);
 
-  useEffect(() => {
-    if (selectedBloodType === 'All') {
-      setFilteredDonors(donors);
-    } else {
-      setFilteredDonors(donors.filter((donor) => donor.bloodType === selectedBloodType));
-    }
-  }, [donors, selectedBloodType]);
+  const filtered = useMemo(() => {
+    return donors.filter((donor) => {
+      const matchesName = donor.fullName.toLowerCase().includes(searchName.toLowerCase());
+      const matchesPhone = (donor.phone ?? '').toLowerCase().includes(searchPhone.toLowerCase());
+      const matchesBlood = selectedBloodType === 'All' || donor.bloodType === selectedBloodType;
+      const matchesGeo =
+        !geoQuery || donor.location.toLowerCase().includes(geoQuery.toLowerCase());
+      return matchesName && matchesPhone && matchesBlood && matchesGeo;
+    });
+  }, [donors, searchName, searchPhone, selectedBloodType, geoQuery]);
+
+  const handleGeoSearch = (query?: string) => {
+    const q = query || geoQuery;
+    if (!q) return;
+    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`, '_blank');
+  };
 
   return (
     <div className="space-y-6">
@@ -30,8 +41,19 @@ const HospitalFindDonorsView = () => {
         <p className="mt-2 text-slate-600">Explore our interactive map to find registered blood donors near you.</p>
 
         <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <label className="text-sm font-medium text-slate-700">Filter by Blood Type:</label>
+          <div className="flex flex-wrap gap-3">
+            <input
+              value={searchName}
+              onChange={(e) => setSearchName(e.target.value)}
+              placeholder="Find by name"
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            />
+            <input
+              value={searchPhone}
+              onChange={(e) => setSearchPhone(e.target.value)}
+              placeholder="Find by number"
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            />
             <div className="relative">
               <button
                 type="button"
@@ -87,16 +109,29 @@ const HospitalFindDonorsView = () => {
                 </>
               )}
             </div>
+            <button
+              type="button"
+              onClick={() => handleGeoSearch()}
+              className="rounded-lg border border-blue-500 px-4 py-2 text-sm font-semibold text-blue-600 hover:bg-blue-50 transition"
+            >
+              Geolocation (Google Maps)
+            </button>
+            <input
+              value={geoQuery}
+              onChange={(e) => setGeoQuery(e.target.value)}
+              placeholder="Find by location"
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            />
           </div>
           <p className="text-sm text-slate-600">
-            Showing <span className="font-semibold text-slate-900">{filteredDonors.length}</span> donors
+            Showing <span className="font-semibold text-slate-900">{filtered.length}</span> donors
           </p>
         </div>
       </div>
 
       {/* Bottom Card - Results or Empty State */}
       <div className="rounded-xl bg-white border border-slate-200 p-8 shadow-lg">
-        {filteredDonors.length === 0 ? (
+        {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <svg
               className="mb-4 h-16 w-16 text-slate-400"
@@ -117,16 +152,26 @@ const HospitalFindDonorsView = () => {
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredDonors.map((donor) => (
-              <div key={donor.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            {filtered.map((donor) => (
+              <div key={donor.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-semibold text-slate-900">{donor.fullName}</h3>
                     <p className="text-sm text-slate-500">{donor.location}</p>
+                    <p className="text-sm text-slate-500">{donor.phone || 'N/A'}</p>
                   </div>
                   <span className="rounded-full bg-blue-100 px-3 py-1 text-sm font-semibold text-blue-700">
                     {donor.bloodType}
                   </span>
+                </div>
+                <div className="flex items-center gap-3 text-sm">
+                  <button
+                    type="button"
+                    onClick={() => handleGeoSearch(donor.location)}
+                    className="text-blue-600 hover:underline font-semibold"
+                  >
+                    Open in Google Maps
+                  </button>
                 </div>
               </div>
             ))}

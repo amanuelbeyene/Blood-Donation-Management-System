@@ -5,15 +5,18 @@ import { Provider } from 'react-redux';
 import App from './App';
 import './index.css';
 import { store } from './store';
+import { LanguageProvider } from './contexts/LanguageContext';
 
 const container = document.getElementById('root') as HTMLElement;
 
 createRoot(container).render(
   <StrictMode>
     <Provider store={store}>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
+      <LanguageProvider>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </LanguageProvider>
     </Provider>
   </StrictMode>,
 );

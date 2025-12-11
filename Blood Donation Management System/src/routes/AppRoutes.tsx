@@ -12,6 +12,7 @@ import AddDonorView from '../views/pages/Admin/AddDonorView';
 import ViewDonorsView from '../views/pages/Admin/ViewDonorsView';
 import EditDonorView from '../views/pages/Admin/EditDonorView';
 import DeleteDonorView from '../views/pages/Admin/DeleteDonorView';
+import AdminFindDonorsView from '../views/pages/Admin/AdminFindDonorsView';
 import AddHospitalView from '../views/pages/Admin/AddHospitalView';
 import ViewHospitalsView from '../views/pages/Admin/ViewHospitalsView';
 import EditHospitalView from '../views/pages/Admin/EditHospitalView';
@@ -20,6 +21,7 @@ import DonationsView from '../views/pages/Admin/DonationsView';
 import BloodRequestsView from '../views/pages/Admin/BloodRequestsView';
 import RequestHistoryView from '../views/pages/Admin/RequestHistoryView';
 import BloodStockView from '../views/pages/Admin/BloodStockView';
+import AdminFindDonorView from '../views/pages/Admin/AdminFindDonorView';
 import HospitalView from '../views/pages/Hospital/HospitalView';
 import EmergencyRequestView from '../views/pages/Hospital/EmergencyRequestView';
 import MyRequestsView from '../views/pages/Hospital/MyRequestsView';
@@ -47,6 +49,7 @@ const AppRoutes = () => (
     </Route>
     <Route element={<AdminLayout />}>
       <Route path="/dashboard" element={<AdminDashboardView />} />
+      <Route path="/admin/find-donors" element={<AdminFindDonorsView />} />
       <Route path="/admin/add-donor" element={<AddDonorView />} />
       <Route path="/admin/view-donors" element={<ViewDonorsView />} />
       <Route path="/admin/edit-donor/:id?" element={<EditDonorView />} />
@@ -59,6 +62,7 @@ const AppRoutes = () => (
       <Route path="/admin/blood-requests" element={<BloodRequestsView />} />
       <Route path="/admin/request-history" element={<RequestHistoryView />} />
       <Route path="/admin/blood-stock" element={<BloodStockView />} />
+      <Route path="/admin/find-donor" element={<AdminFindDonorView />} />
     </Route>
   </Routes>
 );
