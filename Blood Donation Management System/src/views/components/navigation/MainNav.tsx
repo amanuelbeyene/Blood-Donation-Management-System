@@ -1,21 +1,23 @@
 import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
+import { useLanguage } from '../../../contexts/LanguageContext';
 
 const donorNavItems = [
-  { path: '/donor-dashboard', label: 'Dashboard' },
-  { path: '/register', label: 'Register' },
-  { path: '/awards', label: 'Awards' },
+  { path: '/donor-dashboard', labelKey: 'dashboard' },
+  { path: '/register', labelKey: 'register' },
+  { path: '/awards', labelKey: 'awards' },
 ];
 
 const hospitalNavItems = [
-  { path: '/hospital', label: 'Dashboard' },
-  { path: '/hospital/emergency-request', label: 'Emergency Request' },
-  { path: '/hospital/find-donors', label: 'Find Donors' },
-  { path: '/hospital/my-requests', label: 'My Requests' },
+  { path: '/hospital', labelKey: 'dashboard' },
+  { path: '/hospital/emergency-request', labelKey: 'emergencyRequest' },
+  { path: '/hospital/find-donors', labelKey: 'findDonor' },
+  { path: '/hospital/my-requests', labelKey: 'myRequests' },
 ];
 
 const MainNav = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const { lang, toggleLanguage, t, setLanguage } = useLanguage();
   const location = useLocation();
 
   // Show "Donor Mode" only on donor pages, not on main page
@@ -83,39 +85,55 @@ const MainNav = () => {
         <nav className="hidden items-center gap-1 md:flex">
           {navItems.map((item) => {
             // On main page, Dashboard should be highlighted but not navigate
-            if (isMainPage && item.label === 'Dashboard') {
+            if (isMainPage && item.labelKey === 'dashboard') {
               return (
                 <button
                   key={item.path}
                   type="button"
                   className="px-4 py-2 text-sm font-medium transition rounded-lg bg-primary text-white"
                 >
-                  {item.label}
+                  {t(item.labelKey as any)}
                 </button>
               );
             }
             return (
               <NavLink key={item.path} to={item.path} className={linkClasses}>
-                {item.label}
+                {t(item.labelKey as any)}
               </NavLink>
             );
           })}
         </nav>
 
         <div className="hidden items-center gap-3 md:flex">
+          <div className="flex rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-700 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setLanguage('en')}
+              className={`px-3 py-2 transition ${lang === 'en' ? 'bg-primary text-white' : 'hover:bg-slate-100'}`}
+            >
+              ENG
+            </button>
+            <button
+              type="button"
+              onClick={() => setLanguage('am')}
+              className={`px-3 py-2 transition ${lang === 'am' ? 'bg-primary text-white' : 'hover:bg-slate-100'}`}
+            >
+              AMH
+            </button>
+          </div>
           {isMainPage ? (
             <NavLink
               to="/login"
               className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 transition"
             >
-              Log In
+              {t('login' as any)}
             </NavLink>
           ) : (
             <NavLink
               to="/"
               className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 transition"
             >
-              Log Out
+              {t('logout' as any)}
             </NavLink>
           )}
         </div>
@@ -143,7 +161,7 @@ const MainNav = () => {
           <nav className="flex flex-col space-y-3">
             {navItems.map((item) => {
               // On main page, Dashboard should be highlighted but not navigate
-              if (isMainPage && item.label === 'Dashboard') {
+              if (isMainPage && item.labelKey === 'dashboard') {
                 return (
                   <button
                     key={item.path}
@@ -151,7 +169,7 @@ const MainNav = () => {
                     className="px-4 py-2 text-sm font-medium transition rounded-lg bg-primary text-white text-left"
                     onClick={() => setIsOpen(false)}
                   >
-                    {item.label}
+                    {t(item.labelKey as any)}
                   </button>
                 );
               }
@@ -162,17 +180,35 @@ const MainNav = () => {
                   className={linkClasses}
                   onClick={() => setIsOpen(false)}
                 >
-                  {item.label}
+                  {t(item.labelKey as any)}
                 </NavLink>
               );
             })}
+
+            <div className="flex rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-700 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setLanguage('en')}
+                className={`px-3 py-2 transition ${lang === 'en' ? 'bg-primary text-white' : 'hover:bg-slate-100'}`}
+              >
+                ENG
+              </button>
+              <button
+                type="button"
+                onClick={() => setLanguage('am')}
+                className={`px-3 py-2 transition ${lang === 'am' ? 'bg-primary text-white' : 'hover:bg-slate-100'}`}
+              >
+                AMH
+              </button>
+            </div>
+
             {isMainPage ? (
               <NavLink
                 to="/login"
                 onClick={() => setIsOpen(false)}
                 className="rounded-lg bg-red-600 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-red-700 transition"
               >
-                Log In
+                {t('login' as any)}
               </NavLink>
             ) : (
               <NavLink
@@ -180,7 +216,7 @@ const MainNav = () => {
                 onClick={() => setIsOpen(false)}
                 className="rounded-lg bg-red-600 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-red-700 transition"
               >
-                Log Out
+                {t('logout' as any)}
               </NavLink>
             )}
           </nav>

@@ -3,6 +3,8 @@ CREATE TABLE "Donor" (
     "id" TEXT NOT NULL,
     "fullName" TEXT NOT NULL,
     "bloodType" TEXT NOT NULL,
+    "PhoneNumber" INTEGER NOT NULL,
+    "email" TEXT,
     "lastDonation" TIMESTAMP(3),
     "location" TEXT,
     "availability" TEXT,
