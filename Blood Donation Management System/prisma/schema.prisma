@@ -4,28 +4,103 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-
+  url      = env("DATABASE_URL")
 }
 
 model Donor {
   id             String    @id @default(uuid())
   fullName       String
+  email          String    @unique
+  phone          String
   bloodType      String
+  birthDate      DateTime?
+  age            Int?
+  gender         String?
+  medicalCondition String?
+  profilePicture String?
+  
+  // Detailed Location
+  region         String?
+  city           String?
+  subCity        String?
+  woreda         String?
+  kebele         String?
+  street         String?
+  homeNumber     String?
+  location       String? // Formatted or GPS string
+  
+  // GPS Location
+  latitude       Float?
+  longitude      Float?
+
+  // Additional Info
+  fanNumber      String?   @unique
+  hasDisability  String?
+  disabilityType String?
+
+  // Appointment Details
+  donationAppointmentDate DateTime?
+  appointmentRegion      String?
+  appointmentPlace       String?
+  appointmentTime        String?
+
+  lotteryId      String?
+  status         String    @default("Pending")
+  rejectionReason String?
+
+  // System Stats
   lastDonation   DateTime?
-  location       String?
-  availability   String?
+  availability   String?   @default("ready")
   totalDonations Int       @default(0)
   impactScore    Int       @default(0)
   donations      Donation[]
+  
+  // Auth
+  username       String?   @unique
+  password       String?
+  createdAt      DateTime  @default(now())
 }
 
 model Hospital {
   id        String    @id @default(uuid())
   name      String
+  email     String    @unique
+  phone     String
+  
+   // Contact
+  contactDoctorName  String?
+  contactDoctorPhone String?
+  
+  // Location
+  region    String?
+  city      String?
+  subCity   String?
+  woreda    String?
+  kebele    String?
+  street    String?
   location  String?
+
+  // GPS Location
+  latitude  Float?
+  longitude Float?
+  
+  // License & Type
+  licenseName   String?
+  licenseNumber String?
+  hospitalType  String? // 'Government Hospital' | 'Non-Government Hospital'
+  
+  // Auth
+  username      String?   @unique
+  password      String?
+  
+  profilePicture String?
+  status         String @default("Pending") // Pending approval
+  rejectionReason String?
+  
+  createdAt     DateTime  @default(now())
+
   requests  Request[]
   donations Donation[]
-  
 }
 
 model Request {
@@ -38,6 +113,7 @@ model Request {
   unitsNeeded Int
   status      String
   requestedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
 }
 
 model Donation {
@@ -49,6 +125,7 @@ model Donation {
   units        Int
   donationDate DateTime @default(now())
   status       String
+  createdAt    DateTime @default(now())
 }
 
 model Inventory {
@@ -57,4 +134,35 @@ model Inventory {
   unitsAvailable    Int
   criticalThreshold Int
   lastUpdated       DateTime @default(now())
+  createdAt         DateTime @default(now())
+}
+
+model Admin {
+  id        String   @id @default(uuid())
+  username  String   @unique
+  password  String
+  fullName  String
+  email     String   @unique
+  phone     String?
+  role      String   @default("admin") // 'admin' or 'super_admin'
+  
+  // Profile & Status
+  profilePicture String?
+  status         String    @default("active") // 'active' | 'inactive'
+  
+  // Address / Location
+  region         String?
+  city           String?
+  subCity        String?
+  woreda         String?
+  kebele         String?
+  street         String?
+  homeNumber     String?
+  
+  // GPS
+  location       String?   // GPS string if needed
+  latitude       Float?
+  longitude      Float?
+
+  createdAt DateTime @default(now())
 }

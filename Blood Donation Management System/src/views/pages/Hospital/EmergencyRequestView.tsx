@@ -1,19 +1,97 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
+import { useAuth } from '../../../contexts/AuthContext';
+import { fetchHospitalById } from '../../../controllers/hospitalController';
 
 const EmergencyRequestView = () => {
+  const { user } = useAuth();
+  const [isLocating, setIsLocating] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
   const [formState, setFormState] = useState({
     bloodType: '',
     urgencyLevel: '',
-    hospitalLocation: '',
-    contactInfo: '',
+
+    // Hospital Info
+    hospitalName: '',
+    hospitalType: '',
+    phone: '',
+    email: '',
+
+    // Contact Person
+    contactDoctorName: '',
+    contactDoctorPhone: '',
+
+    // Location
+    location: '', // GPS String
+    latitude: null as number | null,
+    longitude: null as number | null,
+
     additionalNotes: '',
   });
+
+  useEffect(() => {
+    if (user?.id) {
+      fetchHospitalById(user.id).then(hospital => {
+        if (hospital) {
+          setFormState(prev => ({
+            ...prev,
+            hospitalName: hospital.name,
+            hospitalType: hospital.hospitalType || '',
+            phone: hospital.phone || '',
+            email: hospital.email || '',
+            contactDoctorName: hospital.contactDoctorName || '',
+            contactDoctorPhone: hospital.contactDoctorPhone || '',
+            location: hospital.location || '',
+            latitude: hospital.latitude || null,
+            longitude: hospital.longitude || null
+          }));
+        }
+        setIsLoading(false);
+      }).catch(err => {
+        console.error(err);
+        setIsLoading(false);
+      });
+    } else {
+      setIsLoading(false);
+    }
+  }, [user]);
+
+  const handleGetLocation = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser');
+      return;
+    }
+
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setFormState((prev: any) => ({
+          ...prev,
+          location: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+          latitude,
+          longitude,
+        }));
+        setIsLocating(false);
+      },
+      (error) => {
+        console.error('Error getting location:', error);
+        alert('Unable to retrieve your location');
+        setIsLocating(false);
+      }
+    );
+  };
+
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     alert('Emergency request submitted! Backend integration coming soon.');
   };
+
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -46,7 +124,7 @@ const EmergencyRequestView = () => {
                 required
                 value={formState.bloodType}
                 onChange={(e) => setFormState((prev) => ({ ...prev, bloodType: e.target.value }))}
-                className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200"
               >
                 <option value="">Select blood type</option>
                 {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map((type) => (
@@ -65,7 +143,7 @@ const EmergencyRequestView = () => {
                 required
                 value={formState.urgencyLevel}
                 onChange={(e) => setFormState((prev) => ({ ...prev, urgencyLevel: e.target.value }))}
-                className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200"
               >
                 <option value="">Select urgency</option>
                 <option value="critical">Critical - Immediate Need</option>
@@ -75,32 +153,98 @@ const EmergencyRequestView = () => {
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Hospital/Location <span className="text-red-500">*</span>
-            </label>
-            <input
-              required
-              type="text"
-              value={formState.hospitalLocation}
-              onChange={(e) => setFormState((prev) => ({ ...prev, hospitalLocation: e.target.value }))}
-              placeholder="e.g., Black Lion Hospital, Addis Ababa"
-              className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-            />
+          <div className="border-t border-slate-100 my-6 pt-6">
+            <h3 className="text-lg font-semibold text-slate-800 mb-4">Hospital Information</h3>
+            <div className="grid gap-6 md:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Hospital Name</label>
+                <input
+                  required
+                  type="text"
+                  value={formState.hospitalName}
+                  onChange={(e) => setFormState(prev => ({ ...prev, hospitalName: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Hospital Type</label>
+                <input
+                  required
+                  type="text"
+                  value={formState.hospitalType}
+                  onChange={(e) => setFormState(prev => ({ ...prev, hospitalType: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Hospital Phone (Landline)</label>
+                <input
+                  required
+                  type="tel"
+                  value={formState.phone}
+                  onChange={(e) => setFormState(prev => ({ ...prev, phone: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Email Address</label>
+                <input
+                  required
+                  type="email"
+                  value={formState.email}
+                  onChange={(e) => setFormState(prev => ({ ...prev, email: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200"
+                />
+              </div>
+            </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Contact Information <span className="text-red-500">*</span>
-            </label>
-            <input
-              required
-              type="text"
-              value={formState.contactInfo}
-              onChange={(e) => setFormState((prev) => ({ ...prev, contactInfo: e.target.value }))}
-              placeholder="Phone number or email"
-              className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-            />
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-slate-700 mb-2">Hospital Location (GPS) <span className="text-red-500">*</span></label>
+            <div className="flex gap-2">
+              <input
+                required
+                type="text"
+                value={formState.location}
+                onChange={(e) => setFormState(prev => ({ ...prev, location: e.target.value }))}
+                className="flex-1 rounded-lg border border-slate-300 px-4 py-3 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200"
+                placeholder="GPS Coordinates"
+              />
+              <button
+                type="button"
+                onClick={handleGetLocation}
+                disabled={isLocating}
+                className="bg-slate-100 text-slate-700 px-4 py-3 rounded-lg font-medium hover:bg-slate-200 transition"
+              >
+                {isLocating ? 'Locating...' : 'Get Location'}
+              </button>
+            </div>
+          </div>
+
+          <div className="border-t border-slate-100 my-6 pt-6">
+            <h3 className="text-lg font-semibold text-slate-800 mb-4">Contact Person Details</h3>
+            <div className="grid gap-6 md:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Contact Doctor Name <span className="text-red-500">*</span></label>
+                <input
+                  required
+                  type="text"
+                  value={formState.contactDoctorName}
+                  onChange={(e) => setFormState(prev => ({ ...prev, contactDoctorName: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Contact Doctor Phone <span className="text-red-500">*</span></label>
+                <input
+                  required
+                  type="tel"
+                  value={formState.contactDoctorPhone}
+                  onChange={(e) => setFormState(prev => ({ ...prev, contactDoctorPhone: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200"
+                />
+              </div>
+            </div>
           </div>
 
           <div>
@@ -110,14 +254,14 @@ const EmergencyRequestView = () => {
               onChange={(e) => setFormState((prev) => ({ ...prev, additionalNotes: e.target.value }))}
               placeholder="Any additional information about the emergency..."
               rows={4}
-              className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 resize-y"
+              className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200 resize-y"
             />
           </div>
 
           <div className="flex gap-4">
             <button
               type="submit"
-              className="flex-1 rounded-lg bg-red-600 px-6 py-3 text-sm font-semibold text-white hover:bg-red-700 transition"
+              className="flex-1 rounded-lg bg-red-600 px-6 py-3 text-sm font-semibold text-white hover:bg-red-700 transition shadow-lg shadow-red-600/30"
             >
               Submit Emergency Request
             </button>
@@ -157,4 +301,3 @@ const EmergencyRequestView = () => {
 };
 
 export default EmergencyRequestView;
-

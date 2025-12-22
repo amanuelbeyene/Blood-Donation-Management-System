@@ -27,46 +27,70 @@ const LandingView = () => {
         </div>
 
         {/* Role Selection Cards */}
-        <div className="grid gap-6 md:grid-cols-3">
-          <RoleCard
-            accent="rose"
-            title="I'm a Donor"
-            description="Register as a blood donor, find donation opportunities, and track your impact."
-            features={['Register your blood type', 'View donation requests', 'Track your points', 'Help save lives']}
-            icon={
-              <svg className="h-10 w-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-            }
-            ctaLabel="Enter as Donor"
-            to="/donor-dashboard"
-          />
-          <RoleCard
-            accent="blue"
-            title="I'm a Hospital"
-            description="Submit emergency requests, find matching donors, and manage blood needs."
-            features={['Submit emergency requests', 'Find matching donors', 'View donor map', 'Manage requests']}
-            icon={
-              <svg className="h-10 w-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-              </svg>
-            }
-            ctaLabel="Enter as Hospital"
-            to="/hospital"
-          />
-          <RoleCard
-            accent="green"
-            title="I'm an Admin"
-            description="Manage the system, monitor statistics, and oversee all operations."
-            features={['Manage users', 'View reports', 'Monitor inventory', 'System settings']}
-            icon={
-              <svg className="h-10 w-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-              </svg>
-            }
-            ctaLabel="Enter as Admin"
-            to="/dashboard"
-          />
+        <div className="space-y-12">
+          {/* Public Roles */}
+          <div>
+            <h2 className="text-2xl font-bold text-slate-800 mb-6 text-center">Join Our Community</h2>
+            <div className="grid gap-6 md:grid-cols-3">
+              <RoleCard
+                accent="rose"
+                title="Enter as Donor"
+                description="Donate blood, track your donation history, and save lives."
+                features={['Register', 'View requests', 'Track donations']}
+                icon={<span className="text-4xl">❤️</span>}
+                ctaLabel="Enter as Donor"
+                to="/login/donor"
+                state={{ role: 'donor' }}
+              />
+              <RoleCard
+                accent="blue"
+                title="Enter as Hospital"
+                description="Request blood, manage inventory, and coordinate with donors."
+                features={['Emergency requests', 'View donors', 'Manage stock']}
+                icon={<span className="text-4xl">🏥</span>}
+                ctaLabel="Enter as Hospital"
+                to="/login/hospital"
+                state={{ role: 'hospital' }}
+              />
+              <RoleCard
+                accent="green"
+                title="Enter as Staff"
+                description="Manage daily operations, donor check-ins, and blood collection."
+                features={['Donor Check-in', 'Blood Collection', 'Appointments']}
+                icon={<span className="text-4xl">👨‍⚕️</span>}
+                ctaLabel="Enter as Staff"
+                to="/login/staff"
+                state={{ role: 'staff' }}
+              />
+            </div>
+          </div>
+
+          {/* Administrative Roles */}
+          <div>
+            <h2 className="text-2xl font-bold text-slate-800 mb-6 text-center">Administration</h2>
+            <div className="grid gap-6 md:grid-cols-2 max-w-4xl mx-auto">
+              <RoleCard
+                accent="purple"
+                title="Enter as Admin"
+                description="Oversee system operations, manage users, and view reports."
+                features={['User Management', 'Reports', 'Operations']}
+                icon={<span className="text-4xl">⚡</span>}
+                ctaLabel="Enter as Admin"
+                to="/login/admin"
+                state={{ role: 'admin' }}
+              />
+              <RoleCard
+                accent="purple"
+                title="Enter as Super Admin"
+                description="Full system access, configuration, and advanced management."
+                features={['System Config', 'Advanced Settings', 'Audit Logs']}
+                icon={<span className="text-4xl">🛡️</span>}
+                ctaLabel="Enter as Super Admin"
+                to="/login/super-admin"
+                state={{ role: 'super_admin' }}
+              />
+            </div>
+          </div>
         </div>
 
         {/* Statistics Bar */}
