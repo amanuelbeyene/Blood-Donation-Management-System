@@ -7,4 +7,9 @@ export const fetchDonors = async (): Promise<Donor[]> => {
   return mockDonors;
 };
 
+export const fetchDonorById = async (id: string): Promise<Donor | undefined> => {
+  await delay();
+  return mockDonors.find((d) => d.id === id);
+};
+
 
