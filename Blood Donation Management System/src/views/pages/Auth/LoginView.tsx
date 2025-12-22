@@ -1,22 +1,35 @@
 import { FormEvent, useState } from 'react';
-import { useNavigate, NavLink } from 'react-router-dom';
-import { mockLogin } from '../../../controllers/authController';
-import { useAppDispatch } from '../../../store/hooks';
-import { login } from '../../../store/slices/authSlice';
+import { useNavigate, NavLink, useLocation } from 'react-router-dom';
+import { useAuth } from '../../../contexts/AuthContext';
 
 const LoginView = () => {
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
-  const [formState, setFormState] = useState({ email: '', password: '' });
+  const location = useLocation();
+  const { login } = useAuth(); // Destructure login from useAuth
+  const initialRole = (location.state as any)?.role || 'donor';
+  const [formState, setFormState] = useState({ identifier: '', password: '', role: initialRole });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSubmitting(true);
-    const response = await mockLogin(formState);
-    dispatch(login({ role: response.role, fullName: response.fullName }));
+
+    // Simulate login success and update AuthContext
+    // In a real application, you would call an API here
+    // and use the actual user data from the API response.
+    const mockId = formState.role === 'hospital' ? 'hosp-1' : 'dnr-1';
+    login({ id: mockId, name: 'User', role: formState.role || 'donor' });
+
     setIsSubmitting(false);
-    navigate('/dashboard');
+
+    const userRole = formState.role || 'donor';
+
+    // Navigate based on role
+    if (userRole === 'admin') navigate('/admin');
+    else if (userRole === 'super_admin') navigate('/super-admin');
+    else if (userRole === 'staff') navigate('/staff');
+    else if (userRole === 'hospital') navigate('/hospital');
+    else navigate('/donor-dashboard');
   };
 
   return (
@@ -26,14 +39,28 @@ const LoginView = () => {
         <p className="mt-2 text-sm text-slate-500">Sign in to manage donors, requests, and reports.</p>
         <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
           <div>
-            <label className="text-sm font-medium text-slate-600">Email</label>
+            <label className="text-sm font-medium text-slate-600">Select Role</label>
+            <select
+              value={formState.role}
+              onChange={(event) => setFormState((prev) => ({ ...prev, role: event.target.value as any }))}
+              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none"
+            >
+              <option value="donor">Donor</option>
+              <option value="hospital">Hospital</option>
+              <option value="staff">Staff</option>
+              <option value="admin">Admin</option>
+              <option value="super_admin">Super Admin</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-600">Email, Username, or Phone Number</label>
             <input
               required
-              type="email"
-              value={formState.email}
-              onChange={(event) => setFormState((prev) => ({ ...prev, email: event.target.value }))}
+              type="text"
+              value={formState.identifier}
+              onChange={(event) => setFormState((prev) => ({ ...prev, identifier: event.target.value }))}
               className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none"
-              placeholder="admin@blood.gov.et"
+              placeholder="e.g., aman, +251..., or admin@blood.gov.et"
             />
           </div>
           <div>

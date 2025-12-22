@@ -13,17 +13,7 @@ const HospitalView = () => {
   return (
     <div className="space-y-6">
       {/* Back to Main Button */}
-      <div className="flex justify-start">
-        <NavLink
-          to="/"
-          className="inline-flex items-center gap-2 rounded-lg border border-blue-600 px-4 py-2 text-sm font-semibold text-blue-600 hover:bg-blue-600 hover:text-white transition"
-        >
-          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-          Back to Main Page
-        </NavLink>
-      </div>
+
 
       {/* Header Section */}
       <div>

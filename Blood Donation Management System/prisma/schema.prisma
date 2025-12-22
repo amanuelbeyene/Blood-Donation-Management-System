@@ -10,22 +10,72 @@ datasource db {
 model Donor {
   id             String    @id @default(uuid())
   fullName       String
+  email          String    @unique
+  phone          String
   bloodType      String
+  birthDate      DateTime?
+  age            Int?
+  medicalCondition String?
+  profilePicture String?
+  
+  // Detailed Location
+  region         String?
+  city           String?
+  subCity        String?
+  woreda         String?
+  kebele         String?
+  street         String?
+  homeNumber     String?
+
+  lotteryId      String?
+  status         String    @default("Active")
+
   lastDonation   DateTime?
-  location       String?
-  availability   String?
+  availability   String?   @default("ready")
   totalDonations Int       @default(0)
   impactScore    Int       @default(0)
   donations      Donation[]
-}
+  
+  // Auth
+  username       String?   @unique
+  password       String?
+  
+  status         String    @default("Pending")
+  rejectionReason String?
 
 model Hospital {
   id        String    @id @default(uuid())
   name      String
-  location  String?
+  email     String    @unique
+  phone     String
+  
+  // Contact
+  contactDoctorName  String?
+  contactDoctorPhone String?
+  
+  // Location
+  region    String?
+  city      String?
+  subCity   String?
+  woreda    String?
+  kebele    String?
+  street    String?
+  
+  // License & Type
+  licenseName   String?
+  licenseNumber String?
+  hospitalType  String? // 'Government Hospital' | 'Non-Government Hospital'
+  
+  // Auth
+  username      String?   @unique
+  password      String?
+  
+  profilePicture String?
+  status         String @default("Pending") // Pending approval
+  rejectionReason String?
+  
   requests  Request[]
   donations Donation[]
-  
 }
 
 model Request {

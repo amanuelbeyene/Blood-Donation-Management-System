@@ -1,40 +1,190 @@
+import { useEffect, useState } from 'react';
+import { fetchHospitals } from '../../../controllers/hospitalController';
+import type { Hospital } from '../../../models/Hospital';
+import { useLanguage } from '../../../contexts/LanguageContext';
+
 const ViewHospitalsView = () => {
-  const hospitals = [
-    { id: '1', name: 'Black Lion Hospital', location: 'Addis Ababa', phone: '+251 911 234 567', email: 'info@blacklion.gov.et' },
-    { id: '2', name: 'St. Paul Hospital', location: 'Addis Ababa', phone: '+251 911 234 568', email: 'info@stpaul.gov.et' },
-    { id: '3', name: 'Jimma University Hospital', location: 'Jimma', phone: '+251 911 234 569', email: 'info@jimma.gov.et' },
-  ];
+  const { t } = useLanguage();
+  const [hospitals, setHospitals] = useState<Hospital[]>([]);
+  const [selectedHospital, setSelectedHospital] = useState<Hospital | null>(null);
+
+  useEffect(() => {
+    fetchHospitals().then(data => {
+      setHospitals(data.filter(h => h.status === 'Active'));
+    });
+  }, []);
+
+  const formatLocation = (hospital: Hospital): string => {
+    if (hospital.locationDetails) {
+      const parts = [
+        hospital.locationDetails.region,
+        hospital.locationDetails.city,
+        hospital.locationDetails.subCity,
+        hospital.locationDetails.woreda,
+        hospital.locationDetails.kebele,
+        hospital.locationDetails.street,
+      ].filter(Boolean);
+      return parts.join(', ') || hospital.location || 'N/A';
+    }
+    return hospital.location || 'N/A';
+  };
+
+  const getFullAddress = (hospital: Hospital): string => {
+    if (hospital.locationDetails) {
+      const parts: string[] = [];
+      if (hospital.locationDetails.region) parts.push(`${t('region')}: ${hospital.locationDetails.region}`);
+      if (hospital.locationDetails.city) parts.push(`${t('city')}: ${hospital.locationDetails.city}`);
+      if (hospital.locationDetails.subCity) parts.push(`${t('subCity')}: ${hospital.locationDetails.subCity}`);
+      if (hospital.locationDetails.woreda) parts.push(`${t('woreda')}: ${hospital.locationDetails.woreda}`);
+      if (hospital.locationDetails.kebele) parts.push(`${t('kebele')}: ${hospital.locationDetails.kebele}`);
+      if (hospital.locationDetails.street) parts.push(`${t('street')}: ${hospital.locationDetails.street}`);
+      return parts.join(' | ') || hospital.location || 'N/A';
+    }
+    return hospital.location || 'N/A';
+  };
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-900">View Hospital Details</h2>
+      <h2 className="text-2xl font-bold text-gray-900">{t('viewHospitalDetails')}</h2>
+
+      {selectedHospital && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex justify-between items-start mb-6">
+            <div className="flex items-center gap-6">
+              {/* Profile Picture - Larger Display */}
+              <div className="flex-shrink-0">
+                {selectedHospital.profilePicture ? (
+                  <img
+                    src={selectedHospital.profilePicture}
+                    alt={selectedHospital.name}
+                    className="h-32 w-32 rounded-full object-cover border-4 border-red-600 shadow-lg"
+                  />
+                ) : (
+                  <div className="h-32 w-32 rounded-full bg-gray-200 flex items-center justify-center border-4 border-gray-300 shadow-lg">
+                    <svg className="h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                  </div>
+                )}
+              </div>
+              <div>
+                <h3 className="text-2xl font-bold text-gray-900 mb-1">{selectedHospital.name}</h3>
+                <p className="text-sm text-gray-600">{t('hospitals')} ID: {selectedHospital.id}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setSelectedHospital(null)}
+              className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm text-gray-600">{t('hospitalName')}</p>
+              <p className="font-medium">{selectedHospital.name}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">{t('hospitalType')}</p>
+              <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">
+                {selectedHospital.hospitalType || 'N/A'}
+              </span>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">{t('emailAddress')}</p>
+              <p className="font-medium">{selectedHospital.email || 'N/A'}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">{t('phoneNumber')}</p>
+              <p className="font-medium">{selectedHospital.phone || 'N/A'}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">{t('contactPerson')}</p>
+              <p className="font-medium">{selectedHospital.contactPerson || 'N/A'}</p>
+            </div>
+            <div className="md:col-span-2">
+              <p className="text-sm text-gray-600">{t('address')}</p>
+              <p className="font-medium">{getFullAddress(selectedHospital)}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">{t('businessLicenseName')}</p>
+              <p className="font-medium">{selectedHospital.businessLicenseName || 'N/A'}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">{t('businessLicenseNumber')}</p>
+              <p className="font-medium">{selectedHospital.businessLicenseNumber || 'N/A'}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">All Hospitals</h3>
+          <h3 className="text-lg font-semibold text-gray-900">{t('hospitals')}</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hospital Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('name')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('emailAddress')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('phoneNumber')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('hospitalType')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('address')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('actions')}</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {hospitals.map((hospital) => (
-                <tr key={hospital.id}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{hospital.name}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{hospital.location}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{hospital.phone}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{hospital.email}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <button className="text-red-600 hover:text-red-800 font-semibold">View Details</button>
+              {hospitals.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                    {t('noDataFound')}
                   </td>
                 </tr>
-              ))}
+              ) : (
+                hospitals.map((hospital) => (
+                  <tr key={hospital.id}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      <div className="flex items-center gap-3">
+                        {hospital.profilePicture ? (
+                          <img
+                            src={hospital.profilePicture}
+                            alt={hospital.name}
+                            className="h-10 w-10 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                            <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                            </svg>
+                          </div>
+                        )}
+                        <span>{hospital.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{hospital.email || 'N/A'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{hospital.phone || 'N/A'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">
+                        {hospital.hospitalType || 'N/A'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-500 max-w-xs">
+                      <div className="truncate" title={getFullAddress(hospital)}>
+                        {formatLocation(hospital)}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <button
+                        onClick={() => setSelectedHospital(hospital)}
+                        className="text-red-600 hover:text-red-800 font-semibold"
+                      >
+                        {t('view')}
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -44,4 +194,3 @@ const ViewHospitalsView = () => {
 };
 
 export default ViewHospitalsView;
-
