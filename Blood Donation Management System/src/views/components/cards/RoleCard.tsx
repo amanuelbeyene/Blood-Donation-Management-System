@@ -8,25 +8,28 @@ interface RoleCardProps {
   features: string[];
   ctaLabel: string;
   to: string;
-  accent: 'rose' | 'blue' | 'green';
+  accent: 'rose' | 'blue' | 'green' | 'purple';
 }
 
 const accents = {
   rose: 'bg-white shadow-lg border border-primary/10',
   blue: 'bg-white shadow-lg border border-blue-200',
   green: 'bg-white shadow-lg border border-emerald-200',
+  purple: 'bg-white shadow-lg border border-purple-200',
 };
 
 const buttonClasses = {
   rose: 'bg-primary text-white hover:bg-primary-dark',
   blue: 'bg-accent text-white hover:bg-blue-600',
   green: 'bg-emerald-600 text-white hover:bg-emerald-700',
+  purple: 'bg-purple-600 text-white hover:bg-purple-700',
 };
 
 const iconBgClasses = {
   rose: 'bg-primary/10 text-primary border-2 border-primary/20',
   blue: 'bg-blue-100 text-accent border-2 border-blue-200',
   green: 'bg-emerald-100 text-emerald-600 border-2 border-emerald-200',
+  purple: 'bg-purple-100 text-purple-600 border-2 border-purple-200',
 };
 
 const RoleCard = ({ icon, title, description, features, ctaLabel, to, accent }: RoleCardProps) => (

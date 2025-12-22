@@ -11,6 +11,7 @@ model Donor {
   id             String    @id @default(uuid())
   fullName       String
   bloodType      String
+  PhoneNumber   Int
   lastDonation   DateTime?
   location       String?
   availability   String?
