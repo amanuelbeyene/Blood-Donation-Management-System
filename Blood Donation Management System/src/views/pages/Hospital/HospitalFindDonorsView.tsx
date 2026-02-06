@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { fetchDonors } from '../../../controllers/donorController';
+import { fetchDonors, notifyDonor } from '../../../controllers/donorController';
 import type { Donor, BloodType } from '../../../models/Donor';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { useToast } from '../../../contexts/ToastContext';
+import ConfirmationModal from '../../components/common/ConfirmationModal';
 
-// Fix for default marker icons in some bundlers if needed, 
-// though we use custom icons mostly.
+// Fix for default marker icons...
 // @ts-ignore
 import icon from 'leaflet/dist/images/marker-icon.png';
 // @ts-ignore
@@ -21,6 +22,18 @@ let DefaultIcon = L.icon({
 L.Marker.prototype.options.icon = DefaultIcon;
 
 const bloodTypes: BloodType[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+
+// ... (Keep existing Map Icons and Helper Components as is, or reconstruct if needed, but for replace_file_content on whole file it might be safer to target blocks.
+// Wait, replacing the WHOLE file via chunk is risky if I miss parts.
+// I will attempt to inject just the parts needed using multiple replace calls.)
+
+// Actually, I will just REPLACE the imports and then REPLACE the Component body to add state and logic.
+
+
+// ... (previous imports and setup)
+
+// Removed duplicate DefaultIcon and bloodTypes declarations.
+
 
 // Custom Red Pin with Heart Icon
 const createHeartIcon = () => {
@@ -82,9 +95,72 @@ const HospitalFindDonorsView = () => {
   const [searchPhone, setSearchPhone] = useState('');
   const [geoQuery, setGeoQuery] = useState('');
 
+  const { toast } = useToast();
   // Modal state
   const [isMapOpen, setIsMapOpen] = useState(false);
   const [focusedLocation, setFocusedLocation] = useState<[number, number] | null>(null);
+
+  // Confirmation Modal State
+  const [modalConfig, setModalConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    type: 'danger' | 'warning' | 'info' | 'success';
+    confirmLabel?: string;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => { },
+    type: 'danger'
+  });
+
+  const openConfirmation = (
+    title: string,
+    message: string,
+    onConfirm: () => void,
+    type: 'danger' | 'warning' | 'info' | 'success' = 'info',
+    confirmLabel: string = 'Confirm'
+  ) => {
+    setModalConfig({
+      isOpen: true,
+      title,
+      message,
+      onConfirm,
+      type,
+      confirmLabel
+    });
+  };
+
+  const handleNotifyClick = async (donor: Donor) => {
+    openConfirmation(
+      "Send Urgent Request",
+      `Are you sure you want to send an URGENT blood request notification to ${donor.fullName}? This will send an SMS and Email.`,
+      async () => {
+        try {
+          console.log(`Sending notification to donor: ${donor.id}`);
+          await notifyDonor(donor.id, 'hospital_request');
+          toast.success("Request Sent Successfully");
+        } catch (error: any) {
+          console.error("Notify failed detailed:", error);
+          if (error.response) {
+            console.error("Response Status:", error.response.status);
+            console.error("Response Data:", error.response.data);
+            toast.error(error.response.data?.message || `Error: ${error.response.status} - ${error.response.statusText}`);
+          } else if (error.request) {
+            console.error("No response received:", error.request);
+            toast.error("Server not reachable. Please check your connection.");
+          } else {
+            console.error("Error setup:", error.message);
+            toast.error(`Error: ${error.message}`);
+          }
+        }
+      },
+      'warning', // Use warning color for urgent actions
+      'Send Request'
+    );
+  };
 
   useEffect(() => {
     fetchDonors().then(setDonors);
@@ -97,7 +173,8 @@ const HospitalFindDonorsView = () => {
       const matchesBlood = selectedBloodType === 'Blood Type' || donor.bloodType === selectedBloodType;
       const matchesGeo =
         !geoQuery || (donor.location && donor.location.toLowerCase().includes(geoQuery.toLowerCase()));
-      return matchesName && matchesPhone && matchesBlood && matchesGeo;
+      const isReady = donor.availability === 'ready';
+      return matchesName && matchesPhone && matchesBlood && matchesGeo && isReady;
     });
   }, [donors, searchName, searchPhone, selectedBloodType, geoQuery]);
 
@@ -253,6 +330,15 @@ const HospitalFindDonorsView = () => {
                     <td className="px-6 py-4">{donor.totalDonations}</td>
                     <td className="px-6 py-4 text-right space-x-3">
                       <button
+                        onClick={() => handleNotifyClick(donor)}
+                        className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-full transition-colors"
+                        title="Send Urgent Request"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                          <path fillRule="evenodd" d="M5.25 9a6.75 6.75 0 0113.5 0v.75c0 2.123.8 4.057 2.118 5.52a.75.75 0 01-.297 1.206c-1.544.57-3.16.99-4.831 1.243a3.75 3.75 0 11-7.48 0 24.585 24.585 0 01-4.831-1.244.75.75 0 01-.298-1.205A8.217 8.217 0 005.25 9.75V9zm4.502 8.9a2.25 2.25 0 104.496 0 25.057 25.057 0 01-4.496 0z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+                      <button
                         onClick={() => handleOpenMap(donor.latitude, donor.longitude)}
                         className="text-blue-600 hover:text-blue-800 font-semibold text-sm hover:underline"
                       >
@@ -307,18 +393,58 @@ const HospitalFindDonorsView = () => {
                       icon={createHeartIcon()}
                     >
                       <Popup>
-                        <div className="min-w-[200px]">
-                          <h3 className="font-bold text-base text-slate-800">{donor.fullName}</h3>
-                          <p className="text-xs text-slate-500 mb-2">{donor.location}</p>
-                          <div className="space-y-1 text-sm text-slate-600">
-                            <div className="flex justify-between">
-                              <span className="font-semibold text-red-500">Blood:</span>
-                              <span>{donor.bloodType}</span>
+                        <div className="min-w-[240px] p-1">
+                          <div className="flex items-center gap-3 mb-3">
+                            {donor.profilePicture ? (
+                              <img
+                                src={donor.profilePicture}
+                                alt={donor.fullName}
+                                className="w-12 h-12 rounded-full object-cover border-2 border-red-100 shadow-sm"
+                              />
+                            ) : (
+                              <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center border-2 border-red-100 text-red-500 font-bold text-lg">
+                                {donor.fullName.charAt(0)}
+                              </div>
+                            )}
+                            <div>
+                              <h3 className="font-bold text-base text-slate-900 leading-tight">{donor.fullName}</h3>
+                              <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium mt-1 ${donor.bloodType.includes('+') ? 'bg-red-100 text-red-700' : 'bg-red-50 text-red-600'
+                                }`}>
+                                {donor.bloodType} Blood
+                              </span>
                             </div>
-                            <div className="flex justify-between">
-                              <span className="font-semibold">Phone:</span>
-                              <span>{donor.phone}</span>
-                            </div>
+                          </div>
+
+                          <p className="text-xs text-slate-500 mb-4 flex items-center gap-1">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                            {donor.location || 'Location not specified'}
+                          </p>
+
+                          <div className="flex gap-2 justify-between border-t border-slate-100 pt-3">
+                            <a
+                              href={`tel:${donor.phone}`}
+                              className="flex-1 flex flex-col items-center justify-center gap-1 p-2 rounded-lg hover:bg-green-50 text-green-600 transition group"
+                              title="Call Donor"
+                            >
+                              <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center group-hover:bg-green-200 transition">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                              </div>
+                              <span className="text-xs font-medium">Call</span>
+                            </a>
+
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation(); // Prevent map click
+                                handleNotifyClick(donor);
+                              }}
+                              className="flex-1 flex flex-col items-center justify-center gap-1 p-2 rounded-lg hover:bg-red-50 text-red-600 transition group"
+                              title="Send Urgent Notification"
+                            >
+                              <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center group-hover:bg-red-200 transition">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+                              </div>
+                              <span className="text-xs font-medium">Notify</span>
+                            </button>
                           </div>
                         </div>
                       </Popup>
@@ -330,6 +456,16 @@ const HospitalFindDonorsView = () => {
           </div>
         </div>
       )}
+
+      <ConfirmationModal
+        isOpen={modalConfig.isOpen}
+        onClose={() => setModalConfig(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={modalConfig.onConfirm}
+        title={modalConfig.title}
+        message={modalConfig.message}
+        type={modalConfig.type}
+        confirmLabel={modalConfig.confirmLabel}
+      />
     </div>
   );
 };

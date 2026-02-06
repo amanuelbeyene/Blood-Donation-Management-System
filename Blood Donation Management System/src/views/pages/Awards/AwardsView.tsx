@@ -28,13 +28,7 @@ const prizeTiers = [
   { points: 100, title: 'Free Mobile Airtime', icon: '📱' },
 ];
 
-const winners = [
-  { name: 'Abebe Kebede', age: 34, bloodType: 'A+', phone: '+251911****55', location: 'Addis Ababa', award: 'Computer', points: 1650, badge: '🏆 Gold' },
-  { name: 'Sara Mohammed', age: 29, bloodType: 'O-', phone: '+251923****26', location: 'Dire Dawa', award: 'Electronics', points: 450, badge: '🥈 Silver' },
-  { name: 'Tewodros Hailu', age: 42, bloodType: 'B+', phone: '+251944****12', location: 'Bahir Dar', award: 'Free Medicine', points: 1900, badge: '🦸 Platinum' },
-  { name: 'Manhuros Hailu', age: 21, bloodType: 'O-', phone: '+251923****26', location: 'Dire Dawa', award: 'Free Mobile Airtime', points: 150, badge: '🥉 Bronze' },
-  { name: 'Yared Desta', age: 28, bloodType: 'AB-', phone: '+251911****99', location: 'Addis Ababa', award: 'Mobile', points: 1400, badge: '🏆 Gold' },
-];
+
 
 const rewardTiers: RewardTier[] = [
   { name: 'Bronze Donor', minDonations: 1, icon: '🥉', color: 'bg-amber-100 text-amber-800', description: '1+ Donations' },
@@ -52,6 +46,20 @@ const pointSystem: PointAction[] = [
 
 const AwardsView = () => {
   const [activeTab, setActiveTab] = useState<'winners' | 'program'>('winners');
+  // Mock Data for undo/stability
+  const [winners, setWinners] = useState<any[]>([
+    { name: "Abebe Kebede", badge: "Gold", points: 500, bloodType: "O+", location: "Bole", award: "T-Shirt" },
+    { name: "Sara Tesfaye", badge: "Silver", points: 300, bloodType: "A-", location: "Nazret", award: "Mug" },
+    { name: "Mulugeta Haile", badge: "Bronze", points: 100, bloodType: "B+", location: "Bahir Dar", award: "Pen" }
+  ]);
+
+  // NOTE: API Fetching removed to ensure stability as per "Undo" request.
+  /*
+  useEffect(() => {
+    const fetchWinners = async () => { ... }
+    fetchWinners();
+  }, []);
+  */
 
   // Initial duration based on 30 days, 23 hours, 59 minutes, 59 seconds
   // This ensures the "Day" counter displays "30"

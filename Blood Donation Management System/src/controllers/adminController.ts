@@ -6,10 +6,12 @@ export interface Admin {
   fullName: string;
   email: string;
   phone?: string;
+  landline?: string;
   role: string; // 'admin' | 'super_admin'
   profilePicture?: string;
   status?: string;
 
+  // Address
   // Address
   region?: string;
   city?: string;
@@ -21,6 +23,17 @@ export interface Admin {
   location?: string;
   latitude?: number;
   longitude?: number;
+
+  // Personal
+  bloodType?: string;
+  birthDate?: string;
+  age?: number | string;
+  maritalStatus?: string;
+  gender?: string;
+  fanNumber?: string;
+  createdAt?: string;
+  idCardFront?: string | null;
+  idCardBack?: string | null;
 }
 
 export const fetchAdmins = async (): Promise<Admin[]> => {
@@ -48,15 +61,31 @@ export const deleteAdmin = async (id: string): Promise<void> => {
 };
 
 export const fetchDashboardStats = async (): Promise<any> => {
-  // TODO: Replace with actual API call
-  return {
-    registeredDonors: 0,
-    emergencyRequests: 0,
-    livesSaved: 0
-  };
+  try {
+    const response = await apiClient.get('/admins/dashboard-stats');
+    return response.data;
+  } catch (error) {
+    console.error("Failed to fetch dashboard stats:", error);
+    // Return zeroes on failure to avoid UI crash
+    return {
+      totalDonors: 0,
+      totalRequests: 0,
+      approvedRequests: 0,
+      totalVolume: 0,
+      bloodGroups: {},
+      availableBloodUnits: 0,
+      totalStaff: 0,
+      totalHospitals: 0
+    };
+  }
 };
 
 export const fetchDonationHistory = async (): Promise<any[]> => {
-  // TODO: Replace with actual API call
-  return [];
+  try {
+    const response = await apiClient.get('/donations');
+    return response.data;
+  } catch (error) {
+    console.error("Failed to fetch donation history:", error);
+    return [];
+  }
 };

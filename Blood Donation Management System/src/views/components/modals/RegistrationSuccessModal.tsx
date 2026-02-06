@@ -58,6 +58,11 @@ const RegistrationSuccessModal = ({ isOpen, onClose, type, data }: RegistrationS
                         <p className="text-slate-500 print:text-sm">
                             {isDonor ? 'Official Donor Registration Card' : 'Official Hospital Registration Card'}
                         </p>
+                        {/* Pending Status Alert */}
+                        <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800 print:hidden">
+                            <strong className="block font-semibold">Registration Pending Approval</strong>
+                            Your account has been created but requires administrator approval before you can fully access the system.
+                        </div>
                     </div>
 
                     {/* IDs Section */}

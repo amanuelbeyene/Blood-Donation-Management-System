@@ -1,13 +1,74 @@
 import { useEffect, useState } from 'react';
-import { fetchRequests } from '../../../controllers/requestController';
+import { useLocation } from 'react-router-dom';
+import { updateRequest, fetchRequests } from '../../../controllers/requestController';
+import { fetchInventory, updateInventory } from '../../../controllers/inventoryController';
 import type { RecipientRequest } from '../../../models/RecipientRequest';
+import type { InventoryRecord } from '../../../models/Inventory';
+import { useToast } from '../../../contexts/ToastContext';
+import ConfirmationModal from '../../components/common/ConfirmationModal';
 
 const BloodRequestsView = () => {
   const [requests, setRequests] = useState<RecipientRequest[]>([]);
+  const [inventory, setInventory] = useState<InventoryRecord[]>([]);
+  const [selectedRequest, setSelectedRequest] = useState<RecipientRequest | null>(null);
+
+  // Rejection State
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [requestToReject, setRequestToReject] = useState<RecipientRequest | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
+
+  // Stock Alert State
+  const [stockAlertOpen, setStockAlertOpen] = useState(false);
+  const [alertBloodType, setAlertBloodType] = useState('');
+
+  // Confirmation Modal
+  const [modalConfig, setModalConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    type: 'danger' | 'warning' | 'info' | 'success';
+    confirmLabel?: string;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => { },
+    type: 'danger'
+  });
+
+  const { toast } = useToast();
+  const location = useLocation();
 
   useEffect(() => {
-    fetchRequests().then(setRequests);
-  }, []);
+    Promise.all([fetchRequests(), fetchInventory()]).then(([requestsData, inventoryData]) => {
+      setRequests(requestsData);
+      setInventory(inventoryData);
+
+      // Check for highlight ID from navigation state
+      const state = location.state as { highlightId?: string } | null;
+      if (state?.highlightId) {
+        const targetRequest = requestsData.find(r => r.id === state.highlightId);
+        if (targetRequest) {
+          // Open Modal
+          setSelectedRequest(targetRequest);
+
+          // Scroll to row and highlight
+          setTimeout(() => {
+            const element = document.getElementById(`request-row-${state.highlightId}`);
+            if (element) {
+              element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              element.classList.add('animate-flash-black');
+              // Remove class after animation to allow re-trigger if needed
+              setTimeout(() => {
+                element.classList.remove('animate-flash-black');
+              }, 1500); // 0.5s * 3 = 1.5s
+            }
+          }, 100);
+        }
+      }
+    });
+  }, [location.state]); // Re-run if location state changes (e.g. clicking another notif while on page)
 
   const urgencyBadge: Record<RecipientRequest['urgency'], string> = {
     emergency: 'bg-red-100 text-red-800',
@@ -15,10 +76,115 @@ const BloodRequestsView = () => {
     standard: 'bg-green-100 text-green-800',
   };
 
-  const statusBadge: Record<RecipientRequest['status'], string> = {
+  const statusBadge: Record<string, string> = {
     pending: 'bg-yellow-100 text-yellow-800',
     matched: 'bg-blue-100 text-blue-800',
     fulfilled: 'bg-green-100 text-green-800',
+    rejected: 'bg-red-100 text-red-800',
+    in_progress: 'bg-purple-100 text-purple-800',
+  };
+
+  const openConfirmation = (
+    title: string,
+    message: string,
+    onConfirm: () => void,
+    type: 'danger' | 'warning' | 'info' | 'success' = 'danger',
+    confirmLabel: string = 'Confirm'
+  ) => {
+    setModalConfig({
+      isOpen: true,
+      title,
+      message,
+      onConfirm,
+      type,
+      confirmLabel
+    });
+  };
+
+  const handleStatusUpdate = async (id: string, newStatus: any, reason?: string) => {
+    try {
+      await updateRequest(id, { status: newStatus, rejectionReason: reason });
+      setRequests(prev => prev.map(r => r.id === id ? { ...r, status: newStatus, rejectionReason: reason } : r));
+      toast.success(`Request ${newStatus === 'rejected' ? 'rejected' : 'accepted'}`);
+
+      // Reset rejection state
+      if (newStatus === 'rejected') {
+        setRejectModalOpen(false);
+        setRejectionReason('');
+        setRequestToReject(null);
+      }
+    } catch (error) {
+      console.error("Failed to update status", error);
+      toast.error('Failed to update status');
+    }
+  };
+
+  const initiateReject = (request: RecipientRequest) => {
+    // Replaced confirm with modal
+    openConfirmation(
+      "Reject Request",
+      "Are you sure you want to reject this request?",
+      () => {
+        setRequestToReject(request);
+        setRejectModalOpen(true);
+      },
+      'danger',
+      'Proceed to Reason'
+    );
+  };
+
+  const initiateAccept = (request: RecipientRequest) => {
+    openConfirmation(
+      "Accept Request",
+      "Are you sure you want to mark this request as Matched/Fulfilled? This will deduct from the blood stock.",
+      async () => {
+        // Check stock
+        const stockItem = inventory.find(item => item.bloodType === request.bloodType);
+        const currentStock = stockItem ? stockItem.unitsAvailable : 0;
+
+        if (currentStock < request.unitsNeeded) {
+          setAlertBloodType(request.bloodType);
+          setStockAlertOpen(true);
+          return;
+        }
+
+        // Deduct stock
+        if (stockItem && stockItem.id) {
+          try {
+            await updateInventory(stockItem.id, { unitsAvailable: currentStock - request.unitsNeeded });
+            // Proceed to update request status
+            await handleStatusUpdate(request.id, 'in_progress');
+            toast.success(`Stock deducted & Request Accepted`);
+          } catch (error) {
+            console.error("Failed to update inventory", error);
+            toast.error("Failed to update inventory stock");
+          }
+        } else {
+          toast.error("Inventory record not found");
+        }
+      },
+      'success',
+      'Accept & Deduct Stock'
+    );
+  };
+
+  const initiateReset = (request: RecipientRequest) => {
+    openConfirmation(
+      "Reset to Pending",
+      "Are you sure you want to reset this request status to Pending?",
+      () => {
+        handleStatusUpdate(request.id, 'pending');
+      },
+      'warning',
+      'Reset Status'
+    );
+  };
+
+  const getHospitalStatus = (status: string) => {
+    if (status === 'fulfilled') return <span className="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">Done</span>;
+    if (status === 'in_progress') return <span className="px-2 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">In Progress</span>;
+    if (status === 'rejected') return <span className="px-2 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800">Rejected</span>;
+    return <span className="px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">Pending</span>;
   };
 
   return (
@@ -33,12 +199,13 @@ const BloodRequestsView = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hospital</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Patient</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Blood Type</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Units Needed</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Urgency</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hospital Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Request Date</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Request Details</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
@@ -51,9 +218,8 @@ const BloodRequestsView = () => {
                 </tr>
               ) : (
                 requests.map((request) => (
-                  <tr key={request.id}>
+                  <tr key={request.id} id={`request-row-${request.id}`}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{request.hospital}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{request.patient}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       <span className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-semibold">
                         {request.bloodType}
@@ -67,14 +233,54 @@ const BloodRequestsView = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 rounded-full text-xs font-semibold ${statusBadge[request.status]}`}>
-                        {request.status}
+                        {request.status === 'in_progress' ? 'Accepted' : request.status}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {getHospitalStatus(request.status)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {new Date(request.requestedAt).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <button className="text-red-600 hover:text-red-800 font-semibold">View Details</button>
+                      <button
+                        onClick={() => setSelectedRequest(request)}
+                        className="text-white bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-xs font-medium transition"
+                      >
+                        View Details
+                      </button>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm flex gap-2">
+                      <button
+                        onClick={() => initiateAccept(request)}
+                        disabled={request.status !== 'pending'}
+                        className={`p-1 rounded-full bg-green-100 text-green-600 transition ${request.status !== 'pending'
+                          ? 'opacity-50 blur-[1px] cursor-not-allowed'
+                          : 'hover:bg-green-200'
+                          }`}
+                        title="Accept / Put In Progress"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                      </button>
+                      <button
+                        onClick={() => initiateReject(request)}
+                        disabled={request.status !== 'pending'}
+                        className={`p-1 rounded-full bg-red-100 text-red-600 transition ${request.status !== 'pending'
+                          ? 'opacity-50 blur-[1px] cursor-not-allowed'
+                          : 'hover:bg-red-200'
+                          }`}
+                        title="Deny / Reject"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                      <button
+                        onClick={() => initiateReset(request)}
+                        disabled={request.status === 'fulfilled'}
+                        className={`p-1 rounded-full transition ${request.status === 'fulfilled' ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                        title="Clear Choice / Reset to Pending"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -83,6 +289,152 @@ const BloodRequestsView = () => {
           </table>
         </div>
       </div>
+
+      <ConfirmationModal
+        isOpen={modalConfig.isOpen}
+        onClose={() => setModalConfig(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={modalConfig.onConfirm}
+        title={modalConfig.title}
+        message={modalConfig.message}
+        type={modalConfig.type}
+        confirmLabel={modalConfig.confirmLabel}
+      />
+
+      {/* Details Modal */}
+      {selectedRequest && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 animate-scale-up">
+            <div className="flex justify-between items-start mb-4">
+              <h3 className="text-xl font-bold text-gray-900">Request Details</h3>
+              <button onClick={() => setSelectedRequest(null)} className="text-gray-400 hover:text-gray-600">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-500">Hospital</p>
+                  <p className="font-medium">{selectedRequest.hospital}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Patient</p>
+                  <p className="font-medium">{selectedRequest.patient}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Blood Type</p>
+                  <span className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-semibold">{selectedRequest.bloodType}</span>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Units Needed</p>
+                  <p className="font-medium">{selectedRequest.unitsNeeded}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Urgency</p>
+                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${urgencyBadge[selectedRequest.urgency]}`}>{selectedRequest.urgency}</span>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Status</p>
+                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${statusBadge[selectedRequest.status]}`}>{selectedRequest.status}</span>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Requested At</p>
+                  <p className="font-medium">{new Date(selectedRequest.requestedAt).toLocaleString()}</p>
+                </div>
+                {selectedRequest.note && (
+                  <div className="col-span-2 mt-2 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+                    <p className="text-sm font-semibold text-blue-800 mb-1">Additional Notes</p>
+                    <p className="text-sm text-blue-700">{selectedRequest.note}</p>
+                  </div>
+                )}
+                {selectedRequest.rejectionReason && (
+                  <div className="col-span-2">
+                    <p className="text-sm text-gray-500">Rejection Reason</p>
+                    <p className="font-medium text-red-600">{selectedRequest.rejectionReason}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-8 flex justify-end gap-3">
+              <button
+                onClick={() => setSelectedRequest(null)}
+                className="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rejection Modal */}
+      {rejectModalOpen && requestToReject && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 animate-scale-up">
+            <h3 className="text-xl font-bold text-gray-900 mb-4">Reject Request</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Please provide a reason for rejecting the request from <span className="font-semibold">{requestToReject.hospital}</span>.
+            </p>
+
+            <textarea
+              className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none mb-4"
+              rows={4}
+              placeholder="Enter rejection reason..."
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+            />
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setRejectModalOpen(false);
+                  setRejectionReason('');
+                  setRequestToReject(null);
+                }}
+                className="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleStatusUpdate(requestToReject.id, 'rejected', rejectionReason)}
+                disabled={!rejectionReason.trim()}
+                className={`px-4 py-2 rounded-lg text-white transition ${!rejectionReason.trim()
+                  ? 'bg-red-300 cursor-not-allowed'
+                  : 'bg-red-600 hover:bg-red-700'
+                  }`}
+              >
+                Confirm Reject
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stock Alert Modal */}
+      {stockAlertOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6 animate-scale-up text-center">
+            <div className="flex justify-center mb-4">
+              <div className="bg-red-100 p-3 rounded-full">
+                <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+              </div>
+            </div>
+
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Insufficient Stock</h3>
+            <p className="text-gray-600 mb-6">
+              Not Enough <span className="font-bold text-gray-800">{alertBloodType}</span> Blood on the stock.
+            </p>
+
+            <button
+              onClick={() => setStockAlertOpen(false)}
+              className="w-full px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

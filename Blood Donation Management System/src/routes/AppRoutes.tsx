@@ -46,18 +46,21 @@ import AdminFindDonorView from '../views/pages/Admin/AdminFindDonorView';
 import HospitalView from '../views/pages/Hospital/HospitalView';
 import EmergencyRequestView from '../views/pages/Hospital/EmergencyRequestView';
 import MyRequestsView from '../views/pages/Hospital/MyRequestsView';
+import MyDonationsView from '../views/pages/Hospital/MyDonationsView';
 import HospitalFindDonorsView from '../views/pages/Hospital/HospitalFindDonorsView';
 import AwardsView from '../views/pages/Awards/AwardsView';
 import DonorAwardsView from '../views/pages/Awards/DonorAwardsView';
 import LoginView from '../views/pages/Auth/LoginView';
 import RegisterView from '../views/pages/Auth/RegisterView';
+import ForgotPasswordView from '../views/pages/Auth/ForgotPasswordView';
+import VerifyOtpView from '../views/pages/Auth/VerifyOtpView';
 import StaffDashboardView from '../views/pages/Staff/StaffDashboardView';
 import StaffAppointmentsView from '../views/pages/Staff/StaffAppointmentsView';
 import DonorActivityView from '../views/pages/Staff/DonorActivityView';
 import HospitalActivityView from '../views/pages/Staff/HospitalActivityView';
 import DonorApprovalView from '../views/pages/Admin/DonorApprovalView';
-import ForgotPasswordView from '../views/pages/Auth/ForgotPasswordView';
 import NotificationsView from '../views/pages/Notifications/NotificationsView';
+import ProtectedRoute from './ProtectedRoute';
 
 const AppRoutes = () => (
   <Routes>
@@ -78,92 +81,133 @@ const AppRoutes = () => (
       <Route path="/login/hospital" element={<LoginView role="hospital" />} />
       <Route path="/hospital/emergency-request" element={<EmergencyRequestView />} />
       <Route path="/hospital/my-requests" element={<MyRequestsView />} />
+      <Route path="/hospital/my-donations" element={<MyDonationsView />} />
       <Route path="/hospital/find-donors" element={<HospitalFindDonorsView />} />
       <Route path="/hospital/edit-profile" element={<EditHospitalView />} />
       <Route path="/register" element={<RegisterView />} />
       <Route path="/login" element={<LoginView />} />
       <Route path="/forgot-password" element={<ForgotPasswordView />} />
+      <Route path="/verify-otp" element={<VerifyOtpView />} />
       <Route path="/edit-donor" element={<EditProfileView />} />
       <Route path="/notifications" element={<NotificationsView />} />
     </Route>
-    <Route path="/admin" element={<AdminLayout />}>
-      <Route index element={<AdminDashboardView />} />
-      <Route path="add-staff" element={<AddStaffView />} />
-      <Route path="view-staff" element={<ViewStaffView />} />
-      <Route path="edit-staff" element={<EditStaffView />} />
+    {/* Protected Admin Routes */}
+    <Route element={<ProtectedRoute roles={['admin']}><AdminLayout /></ProtectedRoute>}>
+      <Route path="/admin">
+        <Route index element={<AdminDashboardView />} />
+        <Route path="add-staff" element={<AddStaffView />} />
+        <Route path="view-staff" element={<ViewStaffView />} />
+        <Route path="edit-staff/:id?" element={<EditStaffView />} />
 
-      <Route path="delete-staff" element={<DeleteStaffView />} />
-      <Route path="manage-staff" element={<StaffActivityView />} />
+        <Route path="delete-staff" element={<DeleteStaffView />} />
+        <Route path="manage-staff" element={<StaffActivityView />} />
 
-      <Route path="donations" element={<DonationsView />} />
-      <Route path="blood-requests" element={<BloodRequestsView />} />
-      <Route path="request-history" element={<RequestHistoryView />} />
-      <Route path="blood-stock" element={<BloodStockView />} />
-      <Route path="donor-approval" element={<DonorApprovalView />} />
-      <Route path="approve-donor" element={<ApproveDonorView />} />
-      <Route path="reject-donor" element={<RejectDonorView />} />
-      <Route path="hospital-approval" element={<HospitalApprovalView />} />
-      <Route path="approve-hospital" element={<ApproveHospitalView />} />
-      <Route path="reject-hospital" element={<RejectHospitalView />} />
-      {/* Admin Management Routes */}
-      <Route path="add-donor" element={<AddDonorView />} />
-      <Route path="view-donors" element={<ViewDonorsView />} />
-      <Route path="edit-donor/:id?" element={<EditDonorView />} />
-      <Route path="delete-donor" element={<DeleteDonorView />} />
-      <Route path="add-hospital" element={<AddHospitalView />} />
-      <Route path="view-hospitals" element={<ViewHospitalsView />} />
-      <Route path="edit-hospital/:id?" element={<EditHospitalView />} />
-      <Route path="delete-hospital" element={<DeleteHospitalView />} />
-      {/* <Route path="find-donors" element={<AdminFindDonorsView />} /> */}
-      {/* <Route path="find-hospital" element={<AdminFindHospitalView />} /> */}
-      <Route path="notifications" element={<NotificationsView />} />
+        <Route path="donations" element={<DonationsView />} />
+        <Route path="blood-requests" element={<BloodRequestsView />} />
+        <Route path="request-history" element={<RequestHistoryView />} />
+        <Route path="blood-stock" element={<BloodStockView />} />
+        <Route path="donor-approval" element={<DonorApprovalView />} />
+        <Route path="approve-donor" element={<DonorApprovalView />} />
+        <Route path="reject-donor" element={<DonorApprovalView />} />
+        <Route path="hospital-approval" element={<HospitalApprovalView />} />
+        <Route path="approve-hospital" element={<HospitalApprovalView />} />
+        <Route path="reject-hospital" element={<HospitalApprovalView />} />
+        {/* Admin Management Routes */}
+        <Route path="add-donor" element={<AddDonorView />} />
+        <Route path="view-donors" element={<ViewDonorsView />} />
+        <Route path="edit-donor/:id?" element={<EditDonorView />} />
+        <Route path="delete-donor" element={<DeleteDonorView />} />
+        <Route path="add-hospital" element={<AddHospitalView />} />
+        <Route path="view-hospitals" element={<ViewHospitalsView />} />
+        <Route path="edit-hospital/:id?" element={<EditHospitalView />} />
+        <Route path="delete-hospital" element={<DeleteHospitalView />} />
+        {/* <Route path="find-donors" element={<AdminFindDonorsView />} /> */}
+        {/* <Route path="find-hospital" element={<AdminFindHospitalView />} /> */}
+        <Route path="notifications" element={<NotificationsView />} />
+      </Route>
     </Route>
 
-    <Route path="/super-admin" element={<SuperAdminLayout />}>
-      <Route index element={<SuperAdminDashboardView />} />
-      <Route path="add-admin" element={<AddAdminView />} />
-      <Route path="view-admins" element={<ViewAdminsView />} />
-      <Route path="edit-admin" element={<EditAdminView />} />
-      <Route path="delete-admin" element={<DeleteAdminView />} />
-      <Route path="manage-admins" element={<AdminActivityView />} />
-      <Route path="donations" element={<DonationsView />} />
-      <Route path="blood-requests" element={<BloodRequestsView />} />
-      <Route path="request-history" element={<RequestHistoryView />} />
-      <Route path="blood-stock" element={<BloodStockView />} />
-      <Route path="donor-approval" element={<DonorApprovalView />} />
-      <Route path="approve-donor" element={<ApproveDonorView />} />
-      <Route path="reject-donor" element={<RejectDonorView />} />
-      <Route path="hospital-approval" element={<HospitalApprovalView />} />
-      <Route path="approve-hospital" element={<ApproveHospitalView />} />
-      <Route path="reject-hospital" element={<RejectHospitalView />} />
-      <Route path="notifications" element={<NotificationsView />} />
+    {/* Protected Super Admin Routes */}
+    <Route element={<ProtectedRoute roles={['super_admin']}><SuperAdminLayout /></ProtectedRoute>}>
+      <Route path="/super-admin">
+        <Route index element={<SuperAdminDashboardView />} />
+        <Route path="add-admin" element={<AddAdminView />} />
+        <Route path="view-admins" element={<ViewAdminsView />} />
+        <Route path="edit-admin/:id?" element={<EditAdminView />} />
+        <Route path="delete-admin" element={<DeleteAdminView />} />
+        <Route path="delete-admin" element={<DeleteAdminView />} />
+        <Route path="manage-admins" element={<AdminActivityView />} />
+        <Route path="view-staff" element={<ViewStaffView />} />
+        <Route path="view-donors" element={<ViewDonorsView />} />
+        <Route path="edit-donor/:id?" element={<EditDonorView />} />
+        <Route path="donations" element={<DonationsView />} />
+        <Route path="blood-requests" element={<BloodRequestsView />} />
+        <Route path="request-history" element={<RequestHistoryView />} />
+        <Route path="blood-stock" element={<BloodStockView />} />
+        <Route path="donor-approval" element={<DonorApprovalView />} />
+        <Route path="approve-donor" element={<ApproveDonorView />} />
+        <Route path="reject-donor" element={<RejectDonorView />} />
+        <Route path="hospital-approval" element={<HospitalApprovalView />} />
+        <Route path="approve-hospital" element={<ApproveHospitalView />} />
+        <Route path="reject-hospital" element={<RejectHospitalView />} />
+        <Route path="notifications" element={<NotificationsView />} />
+      </Route>
     </Route>
 
-    {/* Staff Routes */}
-    <Route path="/staff" element={<StaffLayout />}>
-      <Route index element={<StaffDashboardView />} />
-      <Route path="dashboard" element={<StaffDashboardView />} />
-      {/* <Route path="find-donors" element={<AdminFindDonorsView />} /> */}
-      <Route path="find-hospital" element={<AdminFindHospitalView />} />
-      <Route path="add-donor" element={<AddDonorView />} />
-      <Route path="view-donors" element={<ViewDonorsView />} />
-      <Route path="edit-donor/:id?" element={<EditDonorView />} />
-      <Route path="delete-donor" element={<DeleteDonorView />} />
-      <Route path="manage-donors" element={<DonorActivityView />} />
-      <Route path="hospital-activity" element={<HospitalActivityView />} />
-      <Route path="add-hospital" element={<AddHospitalView />} />
-      <Route path="view-hospitals" element={<ViewHospitalsView />} />
-      <Route path="edit-hospital/:id?" element={<EditHospitalView />} />
-      <Route path="delete-hospital" element={<DeleteHospitalView />} />
-      <Route path="find-donor" element={<AdminFindDonorView />} />
-      <Route path="donor-approval" element={<DonorApprovalView />} />
-      <Route path="approve-donor" element={<ApproveDonorView />} />
-      <Route path="reject-donor" element={<RejectDonorView />} />
-      <Route path="hospital-approval" element={<HospitalApprovalView />} />
-      <Route path="approve-hospital" element={<ApproveHospitalView />} />
-      <Route path="reject-hospital" element={<RejectHospitalView />} />
-      <Route path="appointments" element={<StaffAppointmentsView />} />
-      <Route path="notifications" element={<NotificationsView />} />
+    {/* Protected Staff Routes */}
+    <Route element={<ProtectedRoute roles={['staff']}><StaffLayout /></ProtectedRoute>}>
+      <Route path="/staff">
+        <Route index element={<StaffDashboardView />} />
+        <Route path="dashboard" element={<StaffDashboardView />} />
+        <Route path="find-hospital" element={<AdminFindHospitalView />} />
+        <Route path="add-donor" element={<AddDonorView />} />
+        <Route path="view-donors" element={<ViewDonorsView />} />
+        <Route path="edit-donor/:id?" element={<EditDonorView />} />
+        <Route path="delete-donor" element={<DeleteDonorView />} />
+        <Route path="manage-donors" element={<DonorActivityView />} />
+        <Route path="hospital-activity" element={<HospitalActivityView />} />
+        <Route path="add-hospital" element={<AddHospitalView />} />
+        <Route path="view-hospitals" element={<ViewHospitalsView />} />
+        <Route path="edit-hospital/:id?" element={<EditHospitalView />} />
+        <Route path="delete-hospital" element={<DeleteHospitalView />} />
+        <Route path="find-donor" element={<AdminFindDonorView />} />
+        <Route path="donor-approval" element={<DonorApprovalView />} />
+        <Route path="approve-donor" element={<ApproveDonorView />} />
+        <Route path="reject-donor" element={<RejectDonorView />} />
+        <Route path="hospital-approval" element={<HospitalApprovalView />} />
+        <Route path="approve-hospital" element={<ApproveHospitalView />} />
+        <Route path="reject-hospital" element={<RejectHospitalView />} />
+        <Route path="appointments" element={<StaffAppointmentsView />} />
+        <Route path="notifications" element={<NotificationsView />} />
+      </Route>
+    </Route>
+
+    {/* Protected Medical Staff Routes */}
+    <Route element={<ProtectedRoute roles={['medical_staff']}><StaffLayout /></ProtectedRoute>}>
+      <Route path="/medical-staff">
+        <Route index element={<StaffDashboardView />} />
+        <Route path="dashboard" element={<StaffDashboardView />} />
+        <Route path="find-hospital" element={<AdminFindHospitalView />} />
+        <Route path="add-donor" element={<AddDonorView />} />
+        <Route path="view-donors" element={<ViewDonorsView />} />
+        <Route path="edit-donor/:id?" element={<EditDonorView />} />
+        <Route path="delete-donor" element={<DeleteDonorView />} />
+        <Route path="manage-donors" element={<DonorActivityView />} />
+        <Route path="hospital-activity" element={<HospitalActivityView />} />
+        <Route path="add-hospital" element={<AddHospitalView />} />
+        <Route path="view-hospitals" element={<ViewHospitalsView />} />
+        <Route path="edit-hospital/:id?" element={<EditHospitalView />} />
+        <Route path="delete-hospital" element={<DeleteHospitalView />} />
+        <Route path="find-donor" element={<AdminFindDonorView />} />
+        <Route path="donor-approval" element={<DonorApprovalView />} />
+        <Route path="approve-donor" element={<ApproveDonorView />} />
+        <Route path="reject-donor" element={<RejectDonorView />} />
+        <Route path="hospital-approval" element={<HospitalApprovalView />} />
+        <Route path="approve-hospital" element={<ApproveHospitalView />} />
+        <Route path="reject-hospital" element={<RejectHospitalView />} />
+        <Route path="appointments" element={<StaffAppointmentsView />} />
+        <Route path="notifications" element={<NotificationsView />} />
+      </Route>
     </Route>
   </Routes>
 );

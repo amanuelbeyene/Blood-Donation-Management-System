@@ -211,15 +211,16 @@ const AdminFindHospitalView = () => {
                             <tr>
                                 <th className="px-6 py-4">{t('name')}</th>
                                 <th className="px-6 py-4">{t('phoneNumber')}</th>
-                                <th className="px-6 py-4">{t('emailAddress')}</th>
-                                <th className="px-6 py-4">{t('address')}</th>
+                                <th className="px-6 py-4">Contact Name</th>
+                                <th className="px-6 py-4">Contact Phone</th>
+                                <th className="px-6 py-4">{t('address')} (Region)</th>
                                 <th className="px-6 py-4 text-right">{t('actions')}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {filtered.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                                    <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
                                         {t('noHospitalsFound')}
                                     </td>
                                 </tr>
@@ -228,9 +229,10 @@ const AdminFindHospitalView = () => {
                                     <tr key={hospital.id} className="hover:bg-slate-50 transition">
                                         <td className="px-6 py-4 font-semibold text-slate-900">{hospital.name}</td>
                                         <td className="px-6 py-4">{hospital.phone || 'N/A'}</td>
-                                        <td className="px-6 py-4">{hospital.email || 'N/A'}</td>
+                                        <td className="px-6 py-4">{hospital.contactDoctorName || 'N/A'}</td>
+                                        <td className="px-6 py-4">{hospital.contactDoctorPhone || 'N/A'}</td>
                                         <td className="px-6 py-4 max-w-xs truncate">
-                                            {formatLocation(hospital)}
+                                            {hospital.locationDetails?.region || 'N/A'}
                                         </td>
                                         <td className="px-6 py-4 text-right space-x-3">
                                             <button

@@ -8,6 +8,7 @@ import requestRoutes from './routes/requestRoutes';
 import donationRoutes from './routes/donationRoutes';
 import inventoryRoutes from './routes/inventoryRoutes';
 import adminRoutes from './routes/adminRoutes';
+import staffRoutes from './routes/staffRoutes';
 
 dotenv.config();
 
@@ -17,6 +18,11 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
+import notificationRoutes from './routes/notificationRoutes';
+import awardRoutes from './routes/awardRoutes';
+
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/awards', awardRoutes);
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/donors', donorRoutes);
@@ -25,6 +31,8 @@ app.use('/api/requests', requestRoutes);
 app.use('/api/donations', donationRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/admins', adminRoutes);
+app.use('/api/staff', staffRoutes);
+
 
 app.get('/', (req, res) => {
     res.send('Blood Donation Management System API is running');

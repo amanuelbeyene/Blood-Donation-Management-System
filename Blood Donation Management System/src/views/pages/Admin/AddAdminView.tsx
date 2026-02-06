@@ -1,12 +1,14 @@
 import { FormEvent, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { validatePassword } from '../../../utils/validation';
 import { useLanguage } from '../../../contexts/LanguageContext';
-
+import { useToast } from '../../../contexts/ToastContext';
 import { createAdmin } from '../../../controllers/adminController';
 
 const AddAdminView = () => {
     const navigate = useNavigate();
     const { t } = useLanguage();
+    const { toast } = useToast();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [profilePicture, setProfilePicture] = useState<string | null>(null);
     const [isLocating, setIsLocating] = useState(false);
@@ -21,9 +23,10 @@ const AddAdminView = () => {
         fanNumber: '',
         username: '',
         phone: '',
+        landline: '',
         email: '',
-        password: '',
-        confirmPassword: '',
+        password: '12345678',
+        confirmPassword: '12345678',
         // Address
         region: '',
         city: '',
@@ -33,8 +36,11 @@ const AddAdminView = () => {
         street: '',
         homeNumber: '',
         location: '',
+        gender: '',
         latitude: null as number | null,
         longitude: null as number | null,
+        idCardFront: null as string | null,
+        idCardBack: null as string | null,
     });
 
     const calculateAge = (dateString: string) => {
@@ -50,30 +56,36 @@ const AddAdminView = () => {
         return age.toString();
     };
 
-    const handleGetLocation = () => {
-        if (!navigator.geolocation) {
-            alert('Geolocation is not supported by your browser');
-            return;
-        }
-
+    const handleGetLocation = async () => {
         setIsLocating(true);
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const { latitude, longitude } = position.coords;
-                setFormState((prev) => ({
-                    ...prev,
-                    location: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
-                    latitude,
-                    longitude,
-                }));
-                setIsLocating(false);
-            },
-            (error) => {
-                console.error('Error getting location:', error);
-                alert('Unable to retrieve your location');
-                setIsLocating(false);
-            }
-        );
+        try {
+            const { getCurrentLocation, getAddressFromCoordinates } = await import('../../../utils/geoUtils');
+            const position = await getCurrentLocation();
+            const { latitude, longitude } = position.coords;
+
+            // Get address details
+            const address = await getAddressFromCoordinates(latitude, longitude);
+
+            setFormState((prev: any) => ({
+                ...prev,
+                location: `${latitude.toFixed(6)}, ${longitude.toFixed(6)} `,
+                latitude,
+                longitude,
+                // Auto-fill address fields
+                region: address.region || prev.region,
+                city: address.city || prev.city,
+                subCity: address.subCity || prev.subCity,
+                woreda: address.woreda || prev.woreda,
+                kebele: address.kebele || prev.kebele,
+                street: address.street || prev.street,
+                homeNumber: address.homeNumber || prev.homeNumber
+            }));
+        } catch (error: any) {
+            console.error('Error getting location:', error);
+            toast.error(error.message || 'Unable to retrieve location');
+        } finally {
+            setIsLocating(false);
+        }
     };
 
     const handleProfilePictureChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -87,31 +99,231 @@ const AddAdminView = () => {
         }
     };
 
+    const [showSuccessModal, setShowSuccessModal] = useState(false);
+
     const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
         if (formState.password !== formState.confirmPassword) {
-            alert('Passwords do not match!');
+            toast.error('Passwords do not match!');
+            return;
+        }
+
+        if (formState.password !== '12345678') {
+            const passwordValidation = validatePassword(formState.password);
+            if (!passwordValidation.isValid) {
+                toast.error(passwordValidation.message);
+                return;
+            }
+        }
+
+        // Validation logic
+        if (formState.fanNumber.length !== 16) {
+            toast.error('FAN Number must be exactly 16 digits.');
+            return;
+        }
+
+        if (!formState.location || !formState.latitude || !formState.longitude) {
+            toast.error('Location (GPS) is required. Please use the "Get Location" button.');
+            return;
+        }
+
+        if (formState.phone.length !== 10) {
+            toast.error('Phone number must be exactly 10 digits.');
+            return;
+        }
+
+        if (!formState.email) {
+            toast.error('Email is required.');
             return;
         }
 
         try {
+            const { confirmPassword, ...adminData } = formState;
             await createAdmin({
-                ...formState,
-                profilePicture
+                ...adminData,
+                profilePicture,
+                idCardFront: formState.idCardFront || undefined,
+                idCardBack: formState.idCardBack || undefined,
             });
-            alert('Admin added successfully!');
-            navigate('/view-admins');
+            setShowSuccessModal(true);
         } catch (error: any) {
             console.error('Failed to create admin:', error);
-            alert(error.response?.data?.message || 'Failed to create admin');
+            toast.error(error.response?.data?.message || 'Failed to create admin');
         }
     };
 
-    return (
-        <div className="max-w-4xl mx-auto py-8 px-4">
-            <h1 className="text-3xl font-bold text-slate-900 mb-8">Add Admin</h1>
+    const [printMode, setPrintMode] = useState<'essential' | 'full'>('essential');
 
+    const handlePrint = (mode: 'essential' | 'full') => {
+        if (printMode !== mode) {
+            setPrintMode(mode);
+        } else {
+            setTimeout(() => {
+                window.print();
+            }, 100);
+        }
+    };
+
+    const handleClose = () => {
+        setShowSuccessModal(false);
+        navigate('/super-admin/view-admins');
+    };
+
+    if (showSuccessModal) {
+        const qrData = JSON.stringify({
+            id: 'new-admin', // ID not available in formState, maybe return it from createAdmin?
+            username: formState.username,
+            name: formState.fullName,
+            role: formState.role
+        });
+        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrData)}`;
+
+        return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative max-h-[90vh] overflow-y-auto print:shadow-none print:w-full print:max-w-none print:absolute print:inset-0 print:p-0 print:overflow-visible print:max-h-none">
+                    <button
+                        onClick={handleClose}
+                        className="absolute right-4 top-4 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full p-2 transition flex items-center justify-center h-10 w-10 z-10 print:hidden"
+                    >
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                    <div className="text-center print:text-left space-y-4 pt-4">
+                        <div className="flex justify-center mb-4 print:hidden">
+                            <div className="h-16 w-16 bg-green-100 rounded-full flex items-center justify-center">
+                                <svg className="h-8 w-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                            </div>
+                        </div>
+
+                        <h2 className="text-2xl font-bold text-gray-900 print:text-3xl print:mb-6">Admin Registration Complete</h2>
+                        <p className="text-gray-600 print:hidden">The new admin account has been successfully created. Select a print option below.</p>
+
+                        <div id="printable-area" className="bg-gray-50 rounded-xl p-6 text-left space-y-4 border border-gray-200 print:border-none print:bg-white print:p-0">
+                            {/* Header with Profile & QR - Visible in Print */}
+                            <div className="hidden print:flex justify-between items-start mb-6 border-b border-black pb-4">
+                                <div className="flex items-center gap-4">
+                                    {profilePicture ? (
+                                        <img src={profilePicture} className="h-24 w-24 rounded-full object-cover border border-gray-300" alt="Profile" />
+                                    ) : (
+                                        <div className="h-24 w-24 rounded-full bg-gray-200 border border-gray-300"></div>
+                                    )}
+                                    <div>
+                                        <h1 className="text-2xl font-bold">{formState.fullName}</h1>
+                                        <p className="text-gray-600">{formState.role.toUpperCase()}</p>
+                                    </div>
+                                </div>
+                                <img src={qrCodeUrl} alt="QR Code" className="h-24 w-24" />
+                            </div>
+
+                            <div className="border-b border-gray-200 pb-2 mb-2 print:border-black">
+                                <h3 className="text-lg font-semibold text-gray-800">Account Credentials</h3>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <span className="text-sm text-gray-500 block">Username</span>
+                                    <span className="font-mono font-medium text-gray-900">{formState.username}</span>
+                                </div>
+                                <div>
+                                    <span className="text-sm text-gray-500 block">Password <span className="text-red-600 text-xs font-bold uppercase">(Must Change)</span></span>
+                                    <span className="font-mono font-medium text-gray-900 bg-gray-50 px-2 py-1 rounded border border-gray-200">{formState.password}</span>
+                                </div>
+                                <div>
+                                    <span className="text-sm text-gray-500 block">Email</span>
+                                    <span className="font-medium text-gray-900 break-all">{formState.email}</span>
+                                </div>
+                                <div>
+                                    <span className="text-sm text-gray-500 block">Phone</span>
+                                    <span className="font-medium text-gray-900">{formState.phone}</span>
+                                </div>
+                                <div>
+                                    <span className="text-sm text-gray-500 block">Gender</span>
+                                    <span className="font-medium text-gray-900 capitalize">{formState.gender || 'N/A'}</span>
+                                </div>
+                            </div>
+
+                            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-800 flex items-start mt-4 print:mt-4">
+                                <svg className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                                <span>
+                                    <strong>Security Notice:</strong> Please change your password immediately upon your first login. Keep these credentials confidential.
+                                </span>
+                            </div>
+
+                            {/* Full Information Section - Conditional Render based on printMode */}
+                            <div className={printMode === 'full' ? 'block' : 'hidden'}>
+                                <div className="mt-6 pt-4 border-t border-black">
+                                    <h3 className="text-lg font-semibold text-gray-800 mb-3">Personal & Contact Information</h3>
+                                    <div className="grid grid-cols-2 gap-y-2 text-sm">
+                                        <p><strong>Blood Type:</strong> {formState.bloodType}</p>
+                                        <p><strong>Gender:</strong> {formState.gender || 'N/A'}</p>
+                                        <p><strong>Birth Date:</strong> {formState.birthDate}</p>
+                                        <p><strong>Marital Status:</strong> {formState.maritalStatus}</p>
+                                        <p><strong>FAN:</strong> {formState.fanNumber}</p>
+                                        <div className="col-span-2 mt-2">
+                                            <strong>Address:</strong><br />
+                                            {formState.region}, {formState.city}<br />
+                                            {formState.subCity}, {formState.woreda}, {formState.kebele}<br />
+                                            {formState.street}, House #{formState.homeNumber}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row gap-3 pt-6 print:hidden border-t border-gray-100 mt-4">
+                            <button
+                                onClick={() => handlePrint('full')}
+                                className={`flex-1 px-2 py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 text-sm ${printMode === 'full' ? 'bg-purple-600 text-white hover:bg-purple-700 ring-2 ring-offset-2 ring-purple-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                            >
+                                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                </svg>
+                                {printMode === 'full' ? 'Print Full' : 'Preview Full'}
+                            </button>
+                            <button
+                                onClick={() => handlePrint('essential')}
+                                className={`flex-1 px-2 py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 text-sm ${printMode === 'essential' ? 'bg-blue-600 text-white hover:bg-blue-700 ring-2 ring-offset-2 ring-blue-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                            >
+                                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                {printMode === 'essential' ? 'Print Essential' : 'Preview Essential'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <style>{`
+                    @media print {
+                        body * {
+                            visibility: hidden;
+                        }
+                        #printable-area, #printable-area * {
+                            visibility: visible;
+                        }
+                        #printable-area {
+                            position: absolute;
+                            left: 0;
+                            top: 0;
+                            width: 100%;
+                            background: white;
+                            padding: 2rem;
+                        }
+                    }
+                `}</style>
+            </div>
+        );
+    }
+
+    return (
+        <div className="max-w-4xl mx-auto py-8 px-4 print:hidden">
+            <h1 className="text-3xl font-bold text-slate-900 mb-8">Add Admin</h1>
+            {/* ... rest of existing form ... */}
             <form onSubmit={handleSubmit} className="bg-white rounded-3xl p-8 shadow-card border border-slate-100 space-y-6">
                 {/* Profile Picture Upload */}
                 <div className="flex flex-col items-center mb-8">
@@ -153,11 +365,41 @@ const AddAdminView = () => {
                         <input
                             required
                             type="text"
+                            maxLength={35}
                             value={formState.fullName}
                             onChange={(e) => setFormState(prev => ({ ...prev, fullName: e.target.value }))}
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-purple-500 focus:outline-none focus:ring-4 focus:ring-purple-500/10 transition"
+                            className={`w-full rounded-xl border px-4 py-3 focus:outline-none transition ${formState.fullName.length === 35
+                                ? 'border-red-500 focus:border-red-500 bg-red-50'
+                                : 'border-slate-200 focus:border-purple-500 focus:ring-purple-500/10'
+                                }`}
                             placeholder={t('enterFullName')}
                         />
+                        {formState.fullName.length === 35 && (
+                            <p className="text-red-500 text-xs mt-1">Max length reached (35 characters).</p>
+                        )}
+                    </div>
+
+                    {/* Phone (Landline) */}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">{t('phoneLandline' as any) || 'Phone (Landline)'} <span className="text-red-500">*</span></label>
+                        <input
+                            required
+                            type="tel"
+                            maxLength={10}
+                            value={formState.landline || ''}
+                            onChange={(e) => {
+                                const val = e.target.value.replace(/\D/g, '');
+                                setFormState(prev => ({ ...prev, landline: val }));
+                            }}
+                            className={`w-full rounded-xl border px-4 py-3 focus:outline-none focus:ring-4 transition ${formState.landline && formState.landline.length < 10
+                                ? 'border-red-500 focus:border-red-500 focus:ring-red-500/10 bg-red-50'
+                                : 'border-slate-200 focus:border-purple-500 focus:ring-purple-500/10'
+                                }`}
+                            placeholder="011..."
+                        />
+                        {formState.landline && formState.landline.length < 10 && (
+                            <p className="text-red-500 text-xs mt-1">Must be 10 digits. Example 011 4141764</p>
+                        )}
                     </div>
 
                     {/* Phone */}
@@ -166,11 +408,21 @@ const AddAdminView = () => {
                         <input
                             required
                             type="tel"
+                            maxLength={10}
                             value={formState.phone}
-                            onChange={(e) => setFormState(prev => ({ ...prev, phone: e.target.value }))}
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-purple-500 focus:outline-none focus:ring-4 focus:ring-purple-500/10 transition"
-                            placeholder={t('enterPhoneNumber')}
+                            onChange={(e) => {
+                                const val = e.target.value.replace(/\D/g, '');
+                                setFormState(prev => ({ ...prev, phone: val }));
+                            }}
+                            className={`w-full rounded-xl border px-4 py-3 focus:outline-none focus:ring-4 transition ${formState.phone && formState.phone.length !== 10
+                                ? 'border-red-500 focus:border-red-500 focus:ring-red-500/10 bg-red-50'
+                                : 'border-slate-200 focus:border-purple-500 focus:ring-purple-500/10'
+                                }`}
+                            placeholder="+251 911 / 0911"
                         />
+                        {formState.phone && formState.phone.length !== 10 && (
+                            <p className="text-red-500 text-xs mt-1">Must be exactly 10 digits.</p>
+                        )}
                     </div>
 
                     {/* Blood Type */}
@@ -220,6 +472,21 @@ const AddAdminView = () => {
                         />
                     </div>
 
+                    {/* Gender */}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">Gender <span className="text-red-500">*</span></label>
+                        <select
+                            required
+                            value={formState.gender}
+                            onChange={(e) => setFormState(prev => ({ ...prev, gender: e.target.value }))}
+                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-purple-500 focus:outline-none focus:ring-4 focus:ring-purple-500/10 transition"
+                        >
+                            <option value="">Select Gender</option>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                        </select>
+                    </div>
+
                     {/* Marital Status */}
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-2">Marital Status <span className="text-red-500">*</span></label>
@@ -252,18 +519,124 @@ const AddAdminView = () => {
                             }}
                             className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-purple-500 focus:outline-none focus:ring-4 focus:ring-purple-500/10 transition"
                         />
+                        {formState.fanNumber && formState.fanNumber.length !== 16 && (
+                            <p className="text-red-500 text-xs mt-1">FAN Number must be exactly 16 digits.</p>
+                        )}
+                    </div>
+
+                    <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 pb-4 border-t border-b border-slate-100">
+                        {/* Front ID Upload */}
+                        <div className="flex flex-col">
+                            <label className="block text-sm font-medium text-slate-700 mb-2">Front ID <span className="text-red-500">*</span></label>
+                            <div className="relative border-2 border-dashed border-slate-300 rounded-xl p-4 hover:bg-slate-50 transition cursor-pointer flex flex-col items-center justify-center min-h-[150px]"
+                                onClick={() => document.getElementById('frontIdInput')?.click()}
+                            >
+                                {formState.idCardFront ? (
+                                    <div className="relative w-full h-full flex flex-col items-center justify-center">
+                                        <img src={formState.idCardFront} alt="Front ID" className="h-32 object-contain rounded-md" />
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setFormState((prev) => ({ ...prev, idCardFront: null }));
+                                            }}
+                                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition shadow-sm z-10"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <svg className="w-8 h-8 text-slate-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                        </svg>
+                                        <span className="text-sm text-slate-500">Click to upload Front ID</span>
+                                    </>
+                                )}
+                                <input
+                                    id="frontIdInput"
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                            const reader = new FileReader();
+                                            reader.onloadend = () => setFormState(prev => ({ ...prev, idCardFront: reader.result as string }));
+                                            reader.readAsDataURL(file);
+                                        }
+                                    }}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Back ID Upload */}
+                        <div className="flex flex-col">
+                            <label className="block text-sm font-medium text-slate-700 mb-2">Back ID</label>
+                            <div className="relative border-2 border-dashed border-slate-300 rounded-xl p-4 hover:bg-slate-50 transition cursor-pointer flex flex-col items-center justify-center min-h-[150px]"
+                                onClick={() => document.getElementById('backIdInput')?.click()}
+                            >
+                                {formState.idCardBack ? (
+                                    <div className="relative w-full h-full flex flex-col items-center justify-center">
+                                        <img src={formState.idCardBack} alt="Back ID" className="h-32 object-contain rounded-md" />
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setFormState((prev) => ({ ...prev, idCardBack: null }));
+                                            }}
+                                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition shadow-sm z-10"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <svg className="w-8 h-8 text-slate-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                        </svg>
+                                        <span className="text-sm text-slate-500">Click to upload Back ID</span>
+                                    </>
+                                )}
+                                <input
+                                    id="backIdInput"
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                            const reader = new FileReader();
+                                            reader.onloadend = () => setFormState(prev => ({ ...prev, idCardBack: reader.result as string }));
+                                            reader.readAsDataURL(file);
+                                        }
+                                    }}
+                                />
+                            </div>
+                        </div>
                     </div>
 
                     {/* Email */}
                     <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-slate-700 mb-2">{t('emailAddress')}</label>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">{t('emailAddress')} <span className="text-red-500">*</span></label>
                         <input
+                            required
                             type="email"
                             value={formState.email}
                             onChange={(e) => setFormState(prev => ({ ...prev, email: e.target.value }))}
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-purple-500 focus:outline-none focus:ring-4 focus:ring-purple-500/10 transition"
+                            className={`w-full rounded-xl border px-4 py-3 focus:outline-none focus:ring-4 transition ${formState.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formState.email)
+                                ? 'border-red-500 focus:border-red-500 focus:ring-red-500/10 bg-red-50'
+                                : 'border-slate-200 focus:border-purple-500 focus:ring-purple-500/10'
+                                }`}
                             placeholder={t('enterEmail')}
                         />
+                        {formState.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formState.email) && (
+                            <p className="text-red-500 text-xs mt-1">Example: amanuelbeyenee@gmail.com</p>
+                        )}
                     </div>
 
                     {/* Address Section */}
@@ -272,12 +645,13 @@ const AddAdminView = () => {
                     </div>
 
                     <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Location (GPS)</label>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">Location (GPS) <span className="text-red-500">*</span></label>
                         <div className="flex gap-2">
                             <input
                                 type="text"
                                 value={formState.location}
                                 onChange={(e) => setFormState(prev => ({ ...prev, location: e.target.value }))}
+                                required
                                 className="flex-1 rounded-xl border border-slate-200 px-4 py-3 focus:border-purple-500 focus:outline-none"
                                 placeholder="GPS Coordinates"
                             />
@@ -317,8 +691,9 @@ const AddAdminView = () => {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">{t('subCity')}</label>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">{t('subCity')} <span className="text-red-500">*</span></label>
                         <input
+                            required
                             type="text"
                             value={formState.subCity}
                             onChange={(e) => setFormState(prev => ({ ...prev, subCity: e.target.value }))}
@@ -328,8 +703,9 @@ const AddAdminView = () => {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">{t('woreda')}</label>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">{t('woreda')} <span className="text-red-500">*</span></label>
                         <input
+                            required
                             type="text"
                             value={formState.woreda}
                             onChange={(e) => setFormState(prev => ({ ...prev, woreda: e.target.value }))}
@@ -339,8 +715,9 @@ const AddAdminView = () => {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">{t('kebele')}</label>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">{t('kebele')} <span className="text-red-500">*</span></label>
                         <input
+                            required
                             type="text"
                             value={formState.kebele}
                             onChange={(e) => setFormState(prev => ({ ...prev, kebele: e.target.value }))}
@@ -381,38 +758,48 @@ const AddAdminView = () => {
                         <input
                             required
                             type="text"
+                            maxLength={20}
                             value={formState.username}
                             onChange={(e) => setFormState(prev => ({ ...prev, username: e.target.value }))}
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-purple-500 focus:outline-none focus:ring-4 focus:ring-purple-500/10 transition"
+                            className={`w-full rounded-xl border px-4 py-3 focus:outline-none transition ${formState.username && !/^[a-zA-Z0-9]+$/.test(formState.username)
+                                ? 'border-red-500 focus:border-red-500 bg-red-50'
+                                : 'border-slate-200 focus:border-purple-500 focus:ring-purple-500/10'
+                                }`}
                             placeholder={t('enterUsername' as any) || 'Enter Username'}
                         />
+                        {formState.username && !/^[a-zA-Z0-9]+$/.test(formState.username) && (
+                            <p className="text-red-500 text-xs mt-1">Username must be alphanumeric (text and numbers only).</p>
+                        )}
+                        <p className="text-slate-500 text-xs mt-1">Example: amanuel / amanuel369</p>
                     </div>
 
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-2">{t('password' as any) || 'Password'} <span className="text-red-500">*</span></label>
                         <input
                             required
-                            type="password"
+                            type="text"
                             value={formState.password}
-                            onChange={(e) => setFormState(prev => ({ ...prev, password: e.target.value }))}
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-purple-500 focus:outline-none focus:ring-4 focus:ring-purple-500/10 transition"
-                            placeholder={t('enterPassword' as any) || 'Enter Password'}
+                            readOnly
+                            className="w-full rounded-xl border border-slate-200 px-4 py-3 bg-gray-100 text-gray-500 cursor-not-allowed focus:outline-none"
                         />
+                        <p className="text-[10px] text-primary font-bold mt-1 uppercase">
+                            Must change after first login
+                        </p>
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Confirm Password <span className="text-red-500">*</span></label>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">Confirm Password <span className="text-primary">*</span></label>
                         <input
                             required
-                            type="password"
+                            type="text"
                             value={formState.confirmPassword}
-                            onChange={(e) => setFormState(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-purple-500 focus:outline-none focus:ring-4 focus:ring-purple-500/10 transition"
-                            placeholder="Confirm Password"
+                            readOnly
+                            className="w-full rounded-xl border border-slate-200 px-4 py-3 bg-slate-50 text-slate-500 cursor-not-allowed focus:outline-none"
                         />
                     </div>
 
-                </div>
+
+                </div >
 
                 <div className="flex gap-4 pt-6 border-t border-slate-100 mt-6">
                     <button
@@ -429,8 +816,8 @@ const AddAdminView = () => {
                         {t('cancel')}
                     </button>
                 </div>
-            </form>
-        </div>
+            </form >
+        </div >
     );
 };
 

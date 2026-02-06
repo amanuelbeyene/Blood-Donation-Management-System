@@ -12,10 +12,68 @@ type Translations = Record<
     findDonor: string;
     emergencyRequest: string;
     myRequests: string;
+    myDonations: string;
     login: string;
     logout: string;
     language: string;
     home: string;
+    // Footer
+    quickLinks: string;
+    support: string;
+    helpCenter: string;
+    privacyPolicy: string;
+    termsOfService: string;
+    cookiePolicy: string;
+    contactUs: string;
+    footerDesc: string;
+    allRightsReserved: string;
+
+    // Login
+    welcomeBack: string;
+    signInDesc: string;
+    selectRoleTitle: string;
+    identifierLabel: string;
+    identifierPlaceholder: string;
+    passwordLabel: string;
+    forgotPassword: string;
+    signInBtn: string;
+    signingIn: string;
+    newToPlatform: string;
+    createAccount: string;
+
+    // Auth Messages
+    passwordsDoNotMatch: string;
+    fanLengthError: string;
+    phoneLengthError: string;
+    ageError: string;
+    weightError: string;
+    medicalConditionRequired: string;
+    disabilityRequired: string;
+    idCardRequired: string;
+
+    // Register
+    donorRegForm: string;
+    hospitalRegForm: string;
+    frontId: string;
+    backId: string;
+    clickToUploadFront: string;
+    clickToUploadBack: string;
+    enterMedicalConditionsHint: string;
+    gender: string;
+    selectGender: string;
+    male: string;
+    female: string;
+    maritalStatus: string;
+    selectStatus: string;
+    single: string;
+    married: string;
+    widowed: string;
+    divorced: string;
+    separated: string;
+    fanNumber: string;
+    enterFanNumber: string;
+    getLocation: string;
+    locationRequired: string;
     donors: string;
     hospitals: string;
     donations: string;
@@ -41,6 +99,48 @@ type Translations = Record<
 
     deleteStaffDetails: string;
     manageStaff: string;
+    // Admin Sidebar & Status
+    donorStatus: string;
+    pendingDonor: string;
+    approveDonor: string;
+    rejectDonor: string;
+    hospitalStatus: string;
+    pendingHospital: string;
+    approveHospital: string;
+    rejectHospital: string;
+
+    // Staff Portal
+    medicalStaffPortal: string;
+    staffPortal: string;
+    appointments: string;
+    manageHospitalActivity: string;
+
+    // Super Admin
+    addAdmin: string;
+    viewAdminDetails: string;
+    editAdminDetails: string;
+    deleteAdminDetails: string;
+
+    // Languages
+    english: string;
+    amharic: string;
+
+    // Navigation & Common
+    hospitalPortal: string;
+    donorMode: string;
+    notifications: string;
+    markAllRead: string;
+    noNotifications: string;
+    noNewNotifications: string;
+    viewAllNotifications: string;
+    seen: string;
+    deleteProfile: string;
+    deleteProfileConfirmation: string;
+    deleteProfileSubmitted: string;
+    confirm: string;
+    viewing: string;
+    appName: string;
+
     // Forms
     fullName: string;
     bloodType: string;
@@ -48,6 +148,7 @@ type Translations = Record<
     birthDate: string;
     donationAppointmentDate: string;
     age: string;
+    weight: string;
     phoneNumber: string;
     hospitalPhoneNumber: string;
     emailAddress: string;
@@ -124,6 +225,7 @@ type Translations = Record<
     registerDescription: string;
     uploadProfilePicture: string;
     completeRegistration: string;
+    accountCreatedSuccess: string;
     alreadyHaveAccount: string;
     editProfile: string;
     // Hospital
@@ -157,6 +259,79 @@ type Translations = Record<
     noHospitalsFound: string;
     confirmDeleteHospital: string;
     selectHospitalToDelete: string;
+    // Landing Page
+
+    heroSubtitleHtml: string; // Using HTML to support the span with gradient if needed, or just plain text and handle formatting in view. Let's stick to plain text parts if possible or just formatted. 
+    // Actually the view has: 'Donate Blood, <span ...>Save a Life.</span>'.
+    // I will separate: heroTitlePrefix, heroTitleSuffix.
+    heroTitlePrefix: string;
+    heroTitleSuffix: string;
+
+    donateNow: string;
+    requestBlood: string;
+
+    // Stats
+    registeredDonors: string;
+    livesSaved: string;
+    unitsAvailable: string;
+
+    // Roles
+    roleDonorTitle: string;
+    roleDonorDesc: string;
+    roleDonorCta: string;
+    roleDonorFeatures: string[];
+
+    roleHospitalTitle: string;
+    roleHospitalDesc: string;
+    roleHospitalCta: string;
+    roleHospitalFeatures: string[];
+
+    roleStaffTitle: string;
+    roleStaffDesc: string;
+    roleStaffCta: string;
+    roleStaffFeatures: string[];
+
+    roleMedicalStaffTitle: string;
+
+    roleAdminTitle: string;
+    roleAdminDesc: string;
+    roleAdminCta: string;
+    roleAdminFeatures: string[];
+
+    roleSuperAdminTitle: string;
+    roleSuperAdminDesc: string;
+    roleSuperAdminCta: string;
+    roleSuperAdminFeatures: string[];
+
+    // Sections
+    getStarted: string;
+    selectRole: string;
+    whyMatters: string;
+    whyMattersDesc: string;
+
+    // Benefits
+    fastResponse: string;
+    fastResponseDesc: string;
+    secureData: string;
+    secureDataDesc: string;
+    liveTracking: string;
+    liveTrackingDesc: string;
+    community: string;
+    communityDesc: string;
+
+    // Impact
+    monthlyGrowth: string;
+    monthlyGrowthDesc: string;
+    bloodTypeDemand: string;
+    bloodTypeDemandDesc: string;
+    highDemand: string;
+    demand: string;
+    beforeBdms: string;
+    afterBdms: string;
+    manualChaos: string;
+    digitalEfficiency: string;
+    impactBeforeList: string[];
+    impactAfterList: string[];
   }
 >;
 
@@ -169,6 +344,7 @@ const translations: Translations = {
     findDonor: 'Find Donor',
     emergencyRequest: 'Emergency Request',
     myRequests: 'My Requests',
+    myDonations: 'My Donations',
     login: 'Log In',
     logout: 'Log Out',
     language: 'Language',
@@ -197,6 +373,48 @@ const translations: Translations = {
     editStaffDetails: 'Edit Staff Details',
     deleteStaffDetails: 'Delete Staff Details',
     manageStaff: 'Manage Staff',
+    // Admin Sidebar & Status
+    donorStatus: 'Donor Status',
+    pendingDonor: 'Pending Donor',
+    approveDonor: 'Approve Donor',
+    rejectDonor: 'Reject Donor',
+    hospitalStatus: 'Hospital Status',
+    pendingHospital: 'Pending Hospital',
+    approveHospital: 'Approve Hospital',
+    rejectHospital: 'Reject Hospital',
+
+    // Staff Portal
+    medicalStaffPortal: 'Medical Staff Portal',
+    staffPortal: 'Staff Portal',
+    appointments: 'Appointments',
+    manageHospitalActivity: 'Manage Hospital (Activity)',
+
+    // Super Admin
+    addAdmin: 'Add Admin',
+    viewAdminDetails: 'View Admin Details',
+    editAdminDetails: 'Edit Admin Details',
+    deleteAdminDetails: 'Delete Admin Details',
+
+    // Languages
+    english: 'English',
+    amharic: 'Amharic',
+
+    // Navigation & Common
+    hospitalPortal: 'HOSPITAL PORTAL',
+    donorMode: 'Donor Mode',
+    notifications: 'Notifications',
+    markAllRead: 'Mark all read',
+    noNotifications: 'No notifications',
+    noNewNotifications: 'No new notifications',
+    viewAllNotifications: 'View All Notifications',
+    seen: 'Seen',
+    deleteProfile: 'Delete Profile',
+    deleteProfileConfirmation: 'Are you sure you want to delete your profile? This action cannot be undone.',
+    deleteProfileSubmitted: 'Profile delete request submitted.',
+    confirm: 'Confirm',
+    viewing: 'Viewing',
+    appName: 'BDMS Ethiopia',
+
     // Forms
     fullName: 'Full Name',
     bloodType: 'Blood Type',
@@ -204,6 +422,7 @@ const translations: Translations = {
     birthDate: 'Date of Birth',
     donationAppointmentDate: 'Donation Appointment Date',
     age: 'Age',
+    weight: 'Weight (Kg)',
     phoneNumber: 'Phone Number',
     hospitalPhoneNumber: 'Hospital Phone (landline)',
     emailAddress: 'Email Address',
@@ -280,6 +499,7 @@ const translations: Translations = {
     registerDescription: 'Donors and hospitals can onboard in minutes.',
     uploadProfilePicture: 'Upload Profile Picture',
     completeRegistration: 'Complete Registration',
+    accountCreatedSuccess: 'Account created successfully!',
     alreadyHaveAccount: 'Already have an account?',
     editProfile: 'Edit Profile',
     // Hospital
@@ -313,6 +533,134 @@ const translations: Translations = {
     selectHospitalToDelete: 'Select Hospital to Delete',
     findHospital: 'Find Hospital',
     noHospitalsFound: 'No hospitals found',
+
+    // Landing Page
+    heroTitlePrefix: 'Donate Blood, ',
+    heroTitleSuffix: 'Save a Life.',
+    heroSubtitleHtml: 'Join our community of heroes. BDMS Ethiopia connects donors with hospitals instantly to ensure no life is lost due to a shortage.',
+    donateNow: 'Donate Now',
+    requestBlood: 'Request Blood',
+
+    // Stats
+    registeredDonors: 'Registered Donors',
+    livesSaved: 'Lives Saved',
+    unitsAvailable: 'Units Available',
+
+    // Roles
+    roleDonorTitle: 'Donor',
+    roleDonorDesc: 'Donate blood, history, and badges.',
+    roleDonorCta: 'Login as Donor',
+    roleDonorFeatures: ['Schedule Appointments', 'Health History', 'Rewards'],
+
+    roleHospitalTitle: 'Hospital',
+    roleHospitalDesc: 'Request blood and manage stock.',
+    roleHospitalCta: 'Login as Hospital',
+    roleHospitalFeatures: ['Urgent Requests', 'Inventory', 'Donor Database'],
+
+    roleStaffTitle: 'Staff',
+    roleStaffDesc: 'Manage check-ins and collections.',
+    roleStaffCta: 'Login as Staff',
+    roleStaffFeatures: ['Check-in System', 'Vitals', 'Collection Log'],
+
+    roleMedicalStaffTitle: 'Medical Staff',
+
+    roleAdminTitle: 'Admin',
+    roleAdminDesc: 'Operations and user management.',
+    roleAdminCta: 'Admin Portal',
+    roleAdminFeatures: ['User Mgmt', 'Reporting', 'Status'],
+
+    roleSuperAdminTitle: 'Super Admin',
+    roleSuperAdminDesc: 'System configuration and logs.',
+    roleSuperAdminCta: 'Master Portal',
+    roleSuperAdminFeatures: ['Config', 'Audit Logs', 'Security'],
+
+    // Sections
+    getStarted: 'Get Started',
+    selectRole: 'Select your role to access the portal',
+    whyMatters: 'Why BDMS Matters',
+    whyMattersDesc: 'See how digital transformation is saving lives across Ethiopia.',
+
+    // Benefits
+    fastResponse: 'Fast Response',
+    fastResponseDesc: 'Reduce emergency response time by up to 60% with instant matching.',
+    secureData: 'Secure Data',
+    secureDataDesc: 'End-to-end encryption for all donor medical records.',
+    liveTracking: 'Live Tracking',
+    liveTrackingDesc: 'Real-time GPS tracking for critical blood deliveries.',
+    community: 'Community',
+    communityDesc: 'Building a nationwide network of life-savers.',
+
+    // Impact
+    monthlyGrowth: 'Monthly Donation Growth',
+    monthlyGrowthDesc: 'Consistent growth in voluntary donations.',
+    bloodTypeDemand: 'Blood Type Demand',
+    bloodTypeDemandDesc: 'Current distribution of requested blood types.',
+    highDemand: 'High',
+    demand: 'Demand',
+    beforeBdms: 'BEFORE',
+    afterBdms: 'AFTER BDMS',
+    manualChaos: 'Manual Chaos',
+    digitalEfficiency: 'Digital Efficiency',
+    impactBeforeList: ['Paper records & lost files', 'Slow phone-based coordination', 'Expired inventory wastage'],
+    impactAfterList: ['Real-time digital inventory', 'Instant hospital-donor matching', 'Automated expiration alerts'],
+
+    // Footer
+    quickLinks: 'Quick Links',
+    support: 'Support',
+    helpCenter: 'Help Center',
+    privacyPolicy: 'Privacy Policy',
+    termsOfService: 'Terms of Service',
+    cookiePolicy: 'Cookie Policy',
+    contactUs: 'Contact Us',
+    footerDesc: 'Connecting blood donors with hospitals in need. We bridge the gap to ensure every life gets a chance.',
+    allRightsReserved: 'All rights reserved.',
+
+    // Login
+    welcomeBack: 'Welcome back',
+    signInDesc: 'Sign in to manage donors, requests, and reports.',
+    selectRoleTitle: 'Select Role',
+    identifierLabel: 'Email, Username, or Phone Number',
+    identifierPlaceholder: 'e.g., aman, +251..., or admin@blood.gov.et',
+    passwordLabel: 'Password',
+    forgotPassword: 'Forgot Password?',
+    signInBtn: 'Sign in',
+    signingIn: 'Signing in...',
+    newToPlatform: 'New to the platform?',
+    createAccount: 'Create an account',
+
+    // Register
+    donorRegForm: 'Donor Registration Form',
+    hospitalRegForm: 'Hospital Registration Form',
+    frontId: 'Front ID',
+    backId: 'Back ID',
+    clickToUploadFront: 'Click to upload Front ID',
+    clickToUploadBack: 'Click to upload Back ID',
+    enterMedicalConditionsHint: 'Enter any medical conditions',
+    gender: 'Gender',
+    selectGender: 'Select Gender',
+    male: 'Male',
+    female: 'Female',
+    maritalStatus: 'Marital Status',
+    selectStatus: 'Select Status',
+    single: 'Single',
+    married: 'Married',
+    widowed: 'Widowed',
+    divorced: 'Divorced',
+    separated: 'Separated',
+    fanNumber: 'FAN Number',
+    enterFanNumber: 'Enter 16-digit FAN Number',
+    getLocation: 'Get Location',
+    locationRequired: 'Location (GPS) is required',
+
+    // Auth & Validation Messages
+    passwordsDoNotMatch: 'Passwords do not match!',
+    fanLengthError: 'FAN Number must be exactly 16 digits.',
+    phoneLengthError: 'Phone number must be exactly 10 digits.',
+    ageError: 'Age must be greater than 18.',
+    weightError: 'Weight must be greater than 45 kg.',
+    medicalConditionRequired: 'Medical Condition is required.',
+    disabilityRequired: 'Please specify if you have any disabilities.',
+    idCardRequired: 'Front ID Card image is required.',
   },
   am: {
     // Navigation
@@ -322,6 +670,7 @@ const translations: Translations = {
     findDonor: 'ደጋፊ ፈልግ',
     emergencyRequest: 'አደጋ ጥያቄ',
     myRequests: 'ጥያቄዎቼ',
+    myDonations: 'ልገሳዎቼ',
     login: 'ግባ',
     logout: 'ውጣ',
     language: 'ቋንቋ',
@@ -350,6 +699,48 @@ const translations: Translations = {
     editStaffDetails: 'የሰራተኛ ዝርዝሮች ማስተካከል',
     deleteStaffDetails: 'የሰራተኛ ዝርዝሮች ሰርዝ',
     manageStaff: 'ሰራተኞችን ያቀናብሩ',
+    // Admin Sidebar & Status
+    donorStatus: 'የደጋፊ ሁኔታ',
+    pendingDonor: 'በመጠባበቅ ላይ ያለ ደጋፊ',
+    approveDonor: 'ደጋፊ አፅድቅ',
+    rejectDonor: 'ደጋፊ ውድቅ አድርግ',
+    hospitalStatus: 'የሆስፒታል ሁኔታ',
+    pendingHospital: 'በመጠባበቅ ላይ ያለ ሆስፒታል',
+    approveHospital: 'ሆስፒታል አፅድቅ',
+    rejectHospital: 'ሆስፒታል ውድቅ አድርግ',
+
+    // Staff Portal
+    medicalStaffPortal: 'የህክምና ሰራተኞች ፖርታል',
+    staffPortal: 'የሰራተኞች ፖርታል',
+    appointments: 'ቀጠሮዎች',
+    manageHospitalActivity: 'የሆስፒታል ተግባራት',
+
+    // Super Admin
+    addAdmin: 'አስተዳዳሪ ጨምር',
+    viewAdminDetails: 'አስተዳዳሪ ዝርዝሮች ይመልከቱ',
+    editAdminDetails: 'አስተዳዳሪ ዝርዝሮች ያርትዑ',
+    deleteAdminDetails: 'አስተዳዳሪ ዝርዝሮች ሰርዝ',
+
+    // Languages
+    english: 'እንግሊዝኛ',
+    amharic: 'አማርኛ',
+
+    // Navigation & Common
+    hospitalPortal: 'የሆስፒታል ፖርታል',
+    donorMode: 'የደጋፊ ሁነታ',
+    notifications: 'ማሳወቂያዎች',
+    markAllRead: 'ሁሉንም እንደተነበበ ምልክት አድርግ',
+    noNotifications: 'ምንም ማሳወቂያዎች የሉም',
+    noNewNotifications: 'ምንም አዲስ ማሳወቂያዎች የሉም',
+    viewAllNotifications: 'ሁሉንም ማሳወቂያዎች ይመልከቱ',
+    seen: 'ታይቷል',
+    deleteProfile: 'መገለጫ ሰርዝ',
+    deleteProfileConfirmation: 'መገለጫዎን በእርግጠኝነት መሰረዝ ይፈልጋሉ? ይህ እርምጃ ሊቀለበስ አይችልም።',
+    deleteProfileSubmitted: 'የመገለጫ መሰረዝ ጥያቄ ቀርቧል።',
+    confirm: 'አረጋግጥ',
+    viewing: 'እየተመለከቱ ነው',
+    appName: 'BDMS ኢትዮጵያ',
+
     // Forms
     fullName: 'ሙሉ ስም',
     bloodType: 'የደም አይነት',
@@ -357,6 +748,7 @@ const translations: Translations = {
     birthDate: 'የልደት ቀን',
     donationAppointmentDate: 'የልገሳ ቀጠሮ ቀን',
     age: 'ዕድሜ',
+    weight: 'ክብደት (ኪሎ)',
     phoneNumber: 'የስልክ ቁጥር',
     hospitalPhoneNumber: 'የሆስፒታል ስልክ (011...)',
     emailAddress: 'የኢሜይል አድራሻ',
@@ -433,6 +825,7 @@ const translations: Translations = {
     registerDescription: 'ደጋፊዎች እና ሆስፒታሎች በጥቂት ደቂቃዎች ውስጥ ሊመዘገቡ ይችላሉ።',
     uploadProfilePicture: 'መገለጫ ፎቶ ይጭኑ',
     completeRegistration: 'መመዝገብ ያጠናቅቁ',
+    accountCreatedSuccess: 'መለያ በተሳካ ሁኔታ ተፈጥሯል!',
     alreadyHaveAccount: 'አስቀድመው መለያ አሎት?',
     editProfile: 'መገለጫ አርትዕ',
     // Hospital
@@ -466,12 +859,141 @@ const translations: Translations = {
     selectHospitalToDelete: 'ለመሰረዝ ሆስፒታል ይምረጡ',
     findHospital: 'ሆስፒታል ፈልግ',
     noHospitalsFound: 'ሆስፒታል አልተገኘም',
+
+    // Landing Page
+    heroTitlePrefix: 'ደም ይለግሱ፣ ',
+    heroTitleSuffix: 'ሕይወት ያድኑ።',
+    heroSubtitleHtml: 'የጀግኖች ማህበረሰባችንን ይቀላቀሉ። BDMS ኢትዮጵያ በደም እጥረት ምክንያት የትኛውም ህይወት እንዳያልፍ ደጋፊዎችን ከሆስፒታሎች ጋር በፍጥነት ያገናኛል።',
+    donateNow: 'አሁን ይለግሱ',
+    requestBlood: 'ደም ይጠይቁ',
+
+    // Stats
+    registeredDonors: 'የተመዘገቡ ደጋፊዎች',
+    livesSaved: 'የዳኑ ህይወቶች',
+    unitsAvailable: 'የሚገኙ ክፍሎች',
+
+    // Roles
+    roleDonorTitle: 'ደጋፊ',
+    roleDonorDesc: 'ደም መለገስ፣ ታሪክ እና ባጆች።',
+    roleDonorCta: 'እንደ ደጋፊ ይግቡ',
+    roleDonorFeatures: ['ቀጠሮዎችን መያዝ', 'የጤና ታሪክ', 'ሽልማቶች'],
+
+    roleHospitalTitle: 'ሆስፒታል',
+    roleHospitalDesc: 'ደም መጠየቅ እና ክምችት ማስተዳደር።',
+    roleHospitalCta: 'እንደ ሆስፒታል ይግቡ',
+    roleHospitalFeatures: ['የአስቸኳይ ጊዜ ጥያቄዎች', 'ክምችት', 'የደጋፊዎች መረጃ'],
+
+    roleStaffTitle: 'ሰራተኛ',
+    roleStaffDesc: 'ተመዝጋቢዎችን እና ስብስቦችን ማስተዳደር።',
+    roleStaffCta: 'እንደ ሰራተኛ ይግቡ',
+    roleStaffFeatures: ['የመግቢያ ስርዓት', 'ወሳኝ ምልክቶች (Vitals)', 'የስብስብ መዝገብ'],
+
+    roleMedicalStaffTitle: 'የህክምና ሰራተኛ',
+
+    roleAdminTitle: 'አስተዳዳሪ',
+    roleAdminDesc: 'ኦፕሬሽኖች እና የተጠቃሚዎች አስተዳደር።',
+    roleAdminCta: 'የአስተዳዳሪ ፖርታል',
+    roleAdminFeatures: ['ተጠቃሚ ማስተዳደር', 'ሪፖርት ማድረግ', 'ሁኔታ'],
+
+    roleSuperAdminTitle: 'ከፍተኛ አስተዳዳሪ',
+    roleSuperAdminDesc: 'የስርዓት ውቅር እና ምዝግብ ማስታወሻዎች።',
+    roleSuperAdminCta: 'ዋና ፖርታል',
+    roleSuperAdminFeatures: ['ውቅር (Config)', 'የኦዲት ምዝግብ ማስታወሻዎች', 'ደህንነት'],
+
+    // Sections
+    getStarted: 'ጀምር',
+    selectRole: 'ወደ ፖርታሉ ለመግባት ሚናዎን ይምረጡ',
+    whyMatters: 'BDMS ለምን አስፈለገ',
+    whyMattersDesc: 'ዲጂታል ለውጥ በኢትዮጵያ እንዴት ህይወትን እያዳነ እንደሆነ ይመልከቱ።',
+
+    // Benefits
+    fastResponse: 'ፈጣን ምላሽ',
+    fastResponseDesc: 'በፈጣን ማዛመድ የአደጋ ጊዜ ምላሽ ጊዜን እስከ 60% ይቀንሱ።',
+    secureData: 'ደህንነቱ የተጠበቀ መረጃ',
+    secureDataDesc: 'ለሁሉም የደጋፊዎች የህክምና መዛግብት ምስጠራ።',
+    liveTracking: 'ቀጥታ ክትትል',
+    liveTrackingDesc: 'ለወሳኝ የደም አቅርቦቶች የእውነተኛ ጊዜ GPS ክትትል።',
+    community: 'ማህበረሰብ',
+    communityDesc: 'አገር አቀፍ የህይወት አድን መረብ መገንባት።',
+
+    // Impact
+    monthlyGrowth: 'የወር በወር የልገሳ እድገት',
+    monthlyGrowthDesc: 'በበጎ ፈቃደኝነት የሚደረግ ልገሳ ተከታታይ እድገት።',
+    bloodTypeDemand: 'የደም አይነት ፍላጎት',
+    bloodTypeDemandDesc: 'የተጠየቁ የደም አይነቶች ወቅታዊ ስርጭት።',
+    highDemand: 'ከፍተኛ',
+    demand: 'ፍላጎት',
+    beforeBdms: 'ከዚህ በፊት',
+    afterBdms: 'ከBDMS በኋላ',
+    manualChaos: 'የእጅ ሥራ (Manual)',
+    digitalEfficiency: 'ዲጂታል ቅልጥፍና',
+    impactBeforeList: ['የወረቀት መዝገቦች እና የጠፉ ፋይሎች', 'ዘገምተኛ የስልክ ቅንጅት', 'ጊዜው ያለፈበት ክምችት ብክነት'],
+    impactAfterList: ['የእውነተኛ ጊዜ ዲጂታል ክምችት', 'ፈጣን የሆስፒታል-ደጋፊ ግንኙነት', 'ራስ-ሰር ጊዜው የሚያበቃበት ማስጠንቀቂያዎች'],
+
+    // Footer
+    quickLinks: 'ፈጣን አገናኞች',
+    support: 'ድጋፍ',
+    helpCenter: 'የእርዳታ ማዕከል',
+    privacyPolicy: 'የግላዊነት ፖሊሲ',
+    termsOfService: 'የአገልግሎት ውሎች',
+    cookiePolicy: 'የኩኪ ፖሊሲ',
+    contactUs: 'ያግኙን',
+    footerDesc: 'ደም ለጋሾችን ከሆስፒታሎች ጋር ማገናኘት። እያንዳንዱ ህይወት እድል ማግኘቱን ለማረጋገጥ ክፍተቱን እናገናኛለን።',
+    allRightsReserved: 'መብቱ በህግ የተጠበቀ ነው።',
+
+    // Login
+    welcomeBack: 'እንኳን በደህና መጡ',
+    signInDesc: 'ደጋፊዎችን፣ ጥያቄዎችን እና ሪፖርቶችን ለማስተዳደር ይግቡ።',
+    selectRoleTitle: 'ሚና ይምረጡ',
+    identifierLabel: 'ኢሜይል፣ የተጠቃሚ ስም ወይም ስልክ ቁጥር',
+    identifierPlaceholder: 'ምሳሌ፡ አማን፣ +251...፣ ወይም admin@blood.gov.et',
+    passwordLabel: 'የይለፍ ቃል',
+    forgotPassword: 'የይለፍ ቃል ረሱ?',
+    signInBtn: 'ግባት',
+    signingIn: 'በመግባት ላይ...',
+    newToPlatform: 'አዲስ ነዎት?',
+    createAccount: 'መለያ ይፍጠሩ',
+
+    // Register
+    donorRegForm: 'የደጋፊ ምዝገባ ቅጽ',
+    hospitalRegForm: 'የሆስፒታል ምዝገባ ቅጽ',
+    frontId: 'የመታወቂያ ፊት',
+    backId: 'የመታወቂያ ጀርባ',
+    clickToUploadFront: 'የመታወቂያ ፊት ለመጫን እዚህ ይጫኑ',
+    clickToUploadBack: 'የመታወቂያ ጀርባ ለመጫን እዚህ ይጫኑ',
+    enterMedicalConditionsHint: 'የጤና ሁኔታዎች ያስገቡ',
+    gender: 'ፆታ',
+    selectGender: 'ፆታ ይምረጡ',
+    male: 'ወንድ',
+    female: 'ሴት',
+    maritalStatus: 'የጋብቻ ሁኔታ',
+    selectStatus: 'ሁኔታ ይምረጡ',
+    single: 'ያላገባ/ች',
+    married: 'ያገባ/ች',
+    widowed: 'ባል/ሚስት የሞተበት/ባት',
+    divorced: 'የተፋታ/ች',
+    separated: 'የተለያየ/ች',
+    fanNumber: 'የደጋፊ ቁጥር (FAN)',
+    enterFanNumber: '16-አሃዝ የደጋፊ ቁጥር ያስገቡ',
+    getLocation: 'አካባቢ ያግኙ',
+    locationRequired: 'አካባቢ (GPS) ያስፈልጋል',
+
+    // Auth & Validation Messages
+    passwordsDoNotMatch: 'የይለፍ ቃሎች አይዛመዱም!',
+    fanLengthError: 'የደጋፊ ቁጥር በትክክል 16 አሃዞች መሆን አለበት።',
+    phoneLengthError: 'የስልክ ቁጥር በትክክል 10 አሃዞች መሆን አለበት።',
+    ageError: 'እድሜ ከ 18 በላይ መሆን አለበት።',
+    weightError: 'ክብደት ከ 45 ኪሎግራም በላይ መሆን አለበት።',
+    medicalConditionRequired: 'የጤና ሁኔታ ያስፈልጋል።',
+    disabilityRequired: 'እባክዎ አካል ጉዳት ካለብዎ ይግለጹ።',
+    idCardRequired: 'የመታወቂያ ፊት ምስል ያስፈልጋል።',
+
   },
 };
 
 type LanguageContextType = {
   lang: SupportedLang;
-  t: (key: keyof Translations[SupportedLang]) => string;
+  t: (key: keyof Translations[SupportedLang]) => any; // Changed from string to any to support string[]
   setLanguage: (lang: SupportedLang) => void;
   toggleLanguage: () => void;
 };
@@ -515,3 +1037,5 @@ export const useLanguage = () => {
   if (!ctx) throw new Error('useLanguage must be used within LanguageProvider');
   return ctx;
 };
+
+// verified structure

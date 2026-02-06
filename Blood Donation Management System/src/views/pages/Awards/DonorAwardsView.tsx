@@ -1,4 +1,7 @@
 import { useState, useEffect } from 'react';
+import { useAuth } from '../../../contexts/AuthContext';
+import { fetchDonors, fetchDonorById } from '../../../controllers/donorController';
+import type { Donor } from '../../../models/Donor';
 
 // Interfaces for new features
 interface RewardTier {
@@ -27,14 +30,6 @@ const prizeTiers = [
     { points: 100, title: 'Free Mobile Airtime', icon: '📱' },
 ];
 
-const winners = [
-    { name: 'Abebe Kebede', age: 34, bloodType: 'A+', phone: '+251911****55', location: 'Addis Ababa', award: 'Computer', points: 1650, badge: '🏆 Gold' },
-    { name: 'Sara Mohammed', age: 29, bloodType: 'O-', phone: '+251923****26', location: 'Dire Dawa', award: 'Electronics', points: 450, badge: '🥈 Silver' },
-    { name: 'Tewodros Hailu', age: 42, bloodType: 'B+', phone: '+251944****12', location: 'Bahir Dar', award: 'Free Medicine', points: 1900, badge: '🦸 Platinum' },
-    { name: 'Manhuros Hailu', age: 21, bloodType: 'O-', phone: '+251923****26', location: 'Dire Dawa', award: 'Free Mobile Airtime', points: 150, badge: '🥉 Bronze' },
-    { name: 'Yared Desta', age: 28, bloodType: 'AB-', phone: '+251911****99', location: 'Addis Ababa', award: 'Mobile', points: 1400, badge: '🏆 Gold' },
-];
-
 const rewardTiers: RewardTier[] = [
     { name: 'Bronze Donor', minDonations: 1, icon: '🥉', color: 'bg-amber-100 text-amber-800', description: '1+ Donations' },
     { name: 'Silver Donor', minDonations: 3, icon: '🥈', color: 'bg-slate-200 text-slate-800', description: '3+ Donations' },
@@ -49,21 +44,81 @@ const pointSystem: PointAction[] = [
     { action: 'Annual Consistency', points: 100, description: 'Donating regularly within a year' },
 ];
 
-const DonorAwardsView = () => {
-    const [activeTab, setActiveTab] = useState<'winners' | 'program'>('winners');
+const getBadge = (donations: number) => {
+    if (donations >= 10) return '🦸 Platinum';
+    if (donations >= 5) return '🏆 Gold';
+    if (donations >= 3) return '🥈 Silver';
+    if (donations >= 1) return '🥉 Bronze';
+    return '🌱 New';
+};
 
-    // Initial duration based on 30 days, 23 hours, 59 minutes, 59 seconds
-    // This ensures the "Day" counter displays "30"
+const getEligibleAward = (points: number) => {
+    // Find the highest tier achieved
+    const achieved = prizeTiers.find(t => points >= t.points);
+    return achieved ? achieved.title : 'None Yet';
+};
+
+const getNextTarget = (points: number) => {
+    // Find the next tier to achieve (reverse sort to find smallest > points, but array is desc)
+    // Actually array is desc (2000 down to 100).
+    // We want the smallest tier that is > current points.
+    const next = [...prizeTiers].reverse().find(t => t.points > points);
+    return next ? next.title : 'Max Level!';
+};
+
+const DonorAwardsView = () => {
+    const { user } = useAuth();
+    const [activeTab, setActiveTab] = useState<'winners' | 'program'>('winners');
+    const [currentProfile, setCurrentProfile] = useState<Donor | null>(null);
+    const [topDonors, setTopDonors] = useState<any[]>([]);
+
+    // Initial duration based on 30 days...
     const initialSeconds = (30 * 24 * 60 * 60) + (23 * 60 * 60) + (59 * 60) + 59;
     const [timeLeft, setTimeLeft] = useState(initialSeconds);
 
     useEffect(() => {
+        const loadData = async () => {
+            try {
+                // 1. Fetch Current User Profile
+                if (user?.id) {
+                    const profile = await fetchDonorById(user.id);
+                    if (profile) setCurrentProfile(profile);
+                }
+
+                // 2. Fetch Lottery Winners (Real Data)
+                try {
+                    const response = await fetch('http://localhost:5000/api/awards/winners');
+                    if (response.ok) {
+                        const data = await response.json();
+                        // Defensive check
+                        if (Array.isArray(data)) {
+                            setTopDonors(data);
+                        } else {
+                            console.error("Award data structure invalid:", data);
+                            setTopDonors([]);
+                        }
+                    } else {
+                        setTopDonors([]);
+                    }
+                } catch (fetchErr) {
+                    console.error("Failed to fetch awards API", fetchErr);
+                    setTopDonors([]);
+                }
+
+            } catch (err) {
+                console.error("Failed to load award data", err);
+                setTopDonors([]);
+            }
+        };
+
+        loadData();
+
         const timer = setInterval(() => {
             setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
         }, 1000);
 
         return () => clearInterval(timer);
-    }, []);
+    }, [user?.id]);
 
     // Helper to get time parts
     const getTimeParts = (seconds: number) => {
@@ -77,14 +132,24 @@ const DonorAwardsView = () => {
     const { d, h, m, s } = getTimeParts(timeLeft);
     const pad = (num: number) => num.toString().padStart(2, '0');
 
-    // Mock current user data (replace with actual auth context in production)
-    const currentDonor = {
-        name: 'Abebe Kebede',
-        status: '🏆 Gold',
-        points: 1650,
-        bloodType: 'A+',
-        location: 'Addis Ababa',
-        currentAward: 'Computer'
+    // Use fetched data or fallback
+    const displayDonor = currentProfile ? {
+        name: currentProfile.fullName,
+        profilePicture: currentProfile.profilePicture,
+        status: getBadge(currentProfile.totalDonations || 0),
+        points: (currentProfile.totalDonations || 0) * 100, // Assuming 100 pts per donation
+        bloodType: currentProfile.bloodType,
+        location: currentProfile.location, // Or city
+        currentAward: getNextTarget((currentProfile.totalDonations || 0) * 100)
+    } : {
+        // Fallback or loading state
+        name: user?.fullName || 'Loading...',
+        profilePicture: user?.profilePicture,
+        status: '...',
+        points: 0,
+        bloodType: '...',
+        location: '...',
+        currentAward: '...'
     };
 
     return (
@@ -97,17 +162,25 @@ const DonorAwardsView = () => {
             {/* Current Donor Profile Header */}
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-red-100 flex flex-col md:flex-row items-center justify-between gap-6">
                 <div className="flex items-center gap-4">
-                    <div className="h-16 w-16 rounded-full bg-red-100 flex items-center justify-center text-2xl font-bold text-red-600 border-2 border-red-200">
-                        {currentDonor.name.split(' ').map(n => n[0]).join('')}
+                    {displayDonor.profilePicture ? (
+                        <img
+                            src={displayDonor.profilePicture.startsWith('data:') || displayDonor.profilePicture.startsWith('http') ? displayDonor.profilePicture : `data:image/jpeg;base64,${displayDonor.profilePicture}`}
+                            alt={displayDonor.name}
+                            className="h-16 w-16 rounded-full object-cover border-2 border-red-200"
+                            onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling?.classList.remove('hidden'); }}
+                        />
+                    ) : null}
+                    <div className={`h-16 w-16 rounded-full bg-red-100 flex items-center justify-center text-2xl font-bold text-red-600 border-2 border-red-200 ${displayDonor.profilePicture ? 'hidden' : ''}`}>
+                        {displayDonor.name.split(' ').map((n: string) => n[0]).join('')}
                     </div>
                     <div>
-                        <h2 className="text-xl font-bold text-gray-900">{currentDonor.name}</h2>
+                        <h2 className="text-xl font-bold text-gray-900">{displayDonor.name}</h2>
                         <div className="flex items-center gap-2 mt-1">
                             <span className="px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 text-xs font-bold border border-yellow-200">
-                                {currentDonor.status}
+                                {displayDonor.status}
                             </span>
                             <span className="text-sm text-gray-500 flex items-center gap-1">
-                                📍 {currentDonor.location}
+                                📍 {displayDonor.location || 'Unknown'}
                             </span>
                         </div>
                     </div>
@@ -116,17 +189,17 @@ const DonorAwardsView = () => {
                 <div className="flex flex-wrap gap-4 md:gap-8 justify-center md:justify-end flex-1">
                     <div className="text-center">
                         <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider">My Points</p>
-                        <p className="text-xl font-bold text-red-600">{currentDonor.points}</p>
+                        <p className="text-xl font-bold text-red-600">{displayDonor.points}</p>
                     </div>
                     <div className="h-10 w-px bg-gray-200 hidden md:block"></div>
                     <div className="text-center">
                         <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider">Blood Type</p>
-                        <p className="text-xl font-bold text-gray-900">{currentDonor.bloodType}</p>
+                        <p className="text-xl font-bold text-gray-900">{displayDonor.bloodType}</p>
                     </div>
                     <div className="h-10 w-px bg-gray-200 hidden md:block"></div>
                     <div className="text-center">
                         <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider">Current Target</p>
-                        <p className="text-lg font-bold text-blue-600">{currentDonor.currentAward}</p>
+                        <p className="text-lg font-bold text-blue-600">{displayDonor.currentAward}</p>
                     </div>
                 </div>
             </div>
@@ -186,34 +259,27 @@ const DonorAwardsView = () => {
                             <h2 className="text-xl font-semibold text-slate-900">This Month's Top Donors</h2>
 
                             <div className="flex items-center gap-4 bg-white/60 px-6 py-2 rounded-xl border border-rose-200">
+                                {/* Timer code remains same */}
                                 <span className="text-rose-800 font-bold text-sm">⏰ Next Prize Draw:</span>
                                 <div className="flex items-center gap-2 text-rose-900">
                                     <div className="flex flex-col items-center">
                                         <span className="text-[10px] font-bold uppercase text-rose-600 leading-none mb-1">Day</span>
-                                        <div className="bg-rose-600 text-white rounded px-2 py-1 font-mono font-bold text-lg leading-none shadow-sm">
-                                            {pad(d)}
-                                        </div>
+                                        <div className="bg-rose-600 text-white rounded px-2 py-1 font-mono font-bold text-lg leading-none shadow-sm">{pad(d)}</div>
                                     </div>
                                     <span className="font-bold text-rose-400 mt-3">:</span>
                                     <div className="flex flex-col items-center">
                                         <span className="text-[10px] font-bold uppercase text-rose-600 leading-none mb-1">Hour</span>
-                                        <div className="bg-rose-600 text-white rounded px-2 py-1 font-mono font-bold text-lg leading-none shadow-sm">
-                                            {pad(h)}
-                                        </div>
+                                        <div className="bg-rose-600 text-white rounded px-2 py-1 font-mono font-bold text-lg leading-none shadow-sm">{pad(h)}</div>
                                     </div>
                                     <span className="font-bold text-rose-400 mt-3">:</span>
                                     <div className="flex flex-col items-center">
                                         <span className="text-[10px] font-bold uppercase text-rose-600 leading-none mb-1">Min</span>
-                                        <div className="bg-rose-600 text-white rounded px-2 py-1 font-mono font-bold text-lg leading-none shadow-sm">
-                                            {pad(m)}
-                                        </div>
+                                        <div className="bg-rose-600 text-white rounded px-2 py-1 font-mono font-bold text-lg leading-none shadow-sm">{pad(m)}</div>
                                     </div>
                                     <span className="font-bold text-rose-400 mt-3">:</span>
                                     <div className="flex flex-col items-center">
                                         <span className="text-[10px] font-bold uppercase text-rose-600 leading-none mb-1">Sec</span>
-                                        <div className="bg-rose-600 text-white rounded px-2 py-1 font-mono font-bold text-lg leading-none shadow-sm">
-                                            {pad(s)}
-                                        </div>
+                                        <div className="bg-rose-600 text-white rounded px-2 py-1 font-mono font-bold text-lg leading-none shadow-sm">{pad(s)}</div>
                                     </div>
                                 </div>
                             </div>
@@ -231,24 +297,32 @@ const DonorAwardsView = () => {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-rose-50">
-                                    {winners.map((winner, idx) => (
-                                        <tr key={idx} className="text-sm text-slate-700 hover:bg-rose-50/50 transition">
-                                            <td className="px-6 py-3 font-medium text-gray-900">{winner.name}</td>
-                                            <td className="px-6 py-3">
-                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                                                    {winner.badge}
-                                                </span>
+                                    {topDonors.length > 0 ? (
+                                        topDonors.map((winner: any, idx) => (
+                                            <tr key={idx} className="text-sm text-slate-700 hover:bg-rose-50/50 transition">
+                                                <td className="px-6 py-3 font-medium text-gray-900">{winner.donor?.fullName || 'Unknown'}</td>
+                                                <td className="px-6 py-3">
+                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                                        🏆 Winner
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-3 font-bold text-red-600">{winner.points}</td>
+                                                <td className="px-6 py-3">
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-800">
+                                                        {winner.donor?.bloodType || '-'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-3">{winner.donor?.city || winner.donor?.location || 'Unknown'}</td>
+                                                <td className="px-6 py-3 text-blue-600 font-medium">{winner.award}</td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                                                No winners announced for this month yet.
                                             </td>
-                                            <td className="px-6 py-3 font-bold text-red-600">{winner.points}</td>
-                                            <td className="px-6 py-3">
-                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-800">
-                                                    {winner.bloodType}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-3">{winner.location}</td>
-                                            <td className="px-6 py-3 text-blue-600 font-medium">{winner.award}</td>
                                         </tr>
-                                    ))}
+                                    )}
                                 </tbody>
                             </table>
                         </div>

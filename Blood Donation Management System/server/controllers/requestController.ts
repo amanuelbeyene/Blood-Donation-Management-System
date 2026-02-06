@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../config/prisma';
+import { createNotification } from './notificationController';
 
 const mapRequestToFrontend = (req: any) => ({
     ...req,
@@ -10,7 +11,7 @@ const mapRequestToFrontend = (req: any) => ({
 export const getRequests = async (req: Request, res: Response): Promise<void> => {
     try {
         const requests = await prisma.request.findMany({
-            include: { hospital: true },
+            include: { hospital: true, donation: true },
             orderBy: { requestedAt: 'desc' }
         });
         res.json(requests.map(mapRequestToFrontend));
@@ -30,10 +31,30 @@ export const createRequest = async (req: Request, res: Response): Promise<void> 
                 bloodType: data.bloodType,
                 urgency: data.urgency,
                 unitsNeeded: parseInt(data.unitsNeeded),
+                note: data.note,
                 status: 'pending'
             },
             include: { hospital: true }
         });
+
+        // Notification
+        let actorPrefix = '';
+        if (req.headers.authorization) {
+            const token = req.headers.authorization.split(' ')[1];
+            if (!token.startsWith('mock-jwt-token-SA') && !token.startsWith('mock-jwt-token-admin')) {
+                const staffId = token.replace('mock-jwt-token-', '');
+                const staff = await prisma.staff.findUnique({ where: { id: staffId } });
+                if (staff) actorPrefix = ` (Filed by Staff ${staff.fullName})`;
+            }
+        }
+
+        await createNotification(
+            `New Urgent Blood Request from ${(newRequest as any).hospital?.name || 'Hospital'} for ${newRequest.bloodType}${actorPrefix}`,
+            'BLOOD_REQUEST',
+            newRequest.id,
+            'admin'
+        );
+
         res.status(201).json(mapRequestToFrontend(newRequest));
     } catch (error: any) {
         console.error("Create Request Error", error);
@@ -51,8 +72,37 @@ export const updateRequest = async (req: Request, res: Response): Promise<void> 
                 ...updates,
                 unitsNeeded: updates.unitsNeeded ? parseInt(updates.unitsNeeded) : undefined
             },
-            include: { hospital: true }
+            include: { hospital: true, donation: true }
         });
+
+        // Notify Hospital on Status Change
+        if (updates.status) {
+            try {
+                let message = '';
+                let type = '';
+
+                if (updates.status === 'in_progress') {
+                    message = `Your blood request for ${updated.bloodType} (${updated.unitsNeeded} units) has been ACCEPTED. Status is now In Progress.`;
+                    type = 'REQUEST_ACCEPTED';
+                } else if (updates.status === 'rejected') {
+                    message = `Your blood request for ${updated.bloodType} has been REJECTED.${updates.rejectionReason ? ` Reason: ${updates.rejectionReason}` : ''}`;
+                    type = 'REQUEST_REJECTED';
+                }
+
+                if (message && updated.hospitalId) {
+                    await createNotification(
+                        message,
+                        type,
+                        updated.id,
+                        'hospital',
+                        updated.hospitalId
+                    );
+                }
+            } catch (notifyError) {
+                console.error("Failed to notify hospital", notifyError);
+            }
+        }
+
         res.json(mapRequestToFrontend(updated));
     } catch (error) {
         res.status(500).json({ message: 'Update failed' });

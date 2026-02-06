@@ -9,12 +9,44 @@ const DonorDashboardView = () => {
   const { user } = useAuth();
   const userId = user?.id;
   const [donor, setDonor] = useState<Donor>();
+  const [timeLeft, setTimeLeft] = useState<{ days: number, hours: number, minutes: number, seconds: number } | null>(null);
 
   useEffect(() => {
     if (userId) {
       fetchDonorById(userId).then(setDonor);
     }
   }, [userId]);
+
+  useEffect(() => {
+    if (!donor?.lastDonation) {
+      setTimeLeft(null);
+      return;
+    }
+
+    const lastDate = new Date(donor.lastDonation);
+    // 90 days reset period
+    const nextDate = new Date(lastDate.getTime() + (90 * 24 * 60 * 60 * 1000));
+
+    const updateTimer = () => {
+      const now = new Date();
+      const diff = nextDate.getTime() - now.getTime();
+
+      if (diff <= 0) {
+        setTimeLeft(null);
+      } else {
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+        setTimeLeft({ days, hours, minutes, seconds });
+      }
+    };
+
+    updateTimer(); // Initial call
+    const interval = setInterval(updateTimer, 1000);
+
+    return () => clearInterval(interval);
+  }, [donor?.lastDonation]);
 
   if (!userId) {
     return (
@@ -41,17 +73,44 @@ const DonorDashboardView = () => {
   return (
     <div className="space-y-8">
       {/* Welcome Section */}
+      {/* Welcome Section */}
       <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
-        <h1 className="text-3xl font-bold text-slate-900">Welcome, {donor.fullName}!</h1>
-        <p className="mt-2 text-slate-600">Here is your donor profile and donation history.</p>
+        <div className="flex flex-col md:flex-row items-center gap-6">
+          <div className="h-20 w-20 rounded-full bg-gradient-to-br from-red-500 to-pink-600 flex items-center justify-center overflow-hidden shadow-lg ring-4 ring-red-50">
+            {donor.profilePicture ? (
+              <img src={donor.profilePicture} alt="Profile" className="h-full w-full object-cover" />
+            ) : (
+              <span className="text-3xl font-bold text-white">{donor.fullName?.charAt(0) || 'D'}</span>
+            )}
+          </div>
+          <div className="text-center md:text-left">
+            <h1 className="text-3xl font-bold text-slate-900">Welcome Donor, {donor.fullName}!</h1>
+            <p className="mt-2 text-slate-600">Here is your donor profile and donation history.</p>
+          </div>
+        </div>
 
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* Status Card */}
           <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100">
             <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Donor Status</p>
             <div className="mt-2 flex items-center gap-2">
               <span className={`h-3 w-3 rounded-full ${donor.availability === 'ready' ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
               <p className="text-xl font-bold text-slate-900 capitalize">{donor.availability}</p>
+            </div>
+          </div>
+
+          {/* Reset Status Countdown Card */}
+          <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100">
+            <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Reset Status</p>
+            <div className="mt-2">
+              <p className="text-xl font-bold text-slate-900 font-mono">
+                {timeLeft ? (
+                  `${String(timeLeft.days).padStart(2, '0')}:${String(timeLeft.hours).padStart(2, '0')}:${String(timeLeft.minutes).padStart(2, '0')}:${String(timeLeft.seconds).padStart(2, '0')}`
+                ) : (
+                  <span className="text-emerald-600">00:00:00:00</span>
+                )}
+              </p>
+              <p className="text-xs text-slate-400 mt-1">DD:HH:MM:SS</p>
             </div>
           </div>
 

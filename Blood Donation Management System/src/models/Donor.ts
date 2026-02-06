@@ -23,6 +23,7 @@ export interface Donor {
   fullName: string;
   email: string;
   phone: string;
+
   username?: string;
   password?: string;
   bloodType: BloodType;
@@ -38,10 +39,13 @@ export interface Donor {
   locationDetails?: DonorLocation; // New detailed location
   latitude?: number;
   longitude?: number;
-  availability: 'ready' | 'resting';
+  availability: 'ready' | 'resting' | 'Passed_Test' | 'Failed_Test';
   totalDonations: number;
   impactScore: number;
   profilePicture?: string; // URL or base64 string for profile picture
+  idCardFront?: string | null;
+  idCardBack?: string | null;
+  weight?: string | number; // Updated to string to match Prisma schema behavior
   age?: number;
   birthDate?: string; // ISO Date string
   medicalCondition?: string;
@@ -50,6 +54,9 @@ export interface Donor {
   lotteryId?: string;
   status?: 'Active' | 'Inactive' | 'Pending' | 'Rejected';
   rejectionReason?: string;
+  donationStatus?: string; // 'Pending' | 'Passed'
+  createdAt?: string;
+  source?: string; // e.g. 'Self', 'Staff'
 }
 
 

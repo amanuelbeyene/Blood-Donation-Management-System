@@ -1,71 +1,144 @@
-import { useState } from 'react';
-import { useMockData } from '../../../contexts/MockDataContext';
+import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
+import { useToast } from '../../../contexts/ToastContext';
+import { useMockData } from '../../../contexts/MockDataContext'; // Kept for updateDonorStatus if strictly needed, but we are moving away
+import { fetchDonors, updateDonor } from '../../../controllers/donorController';
 import { Donor } from '../../../models/Donor';
+import ConfirmationModal from '../../components/common/ConfirmationModal';
 
-interface PendingEdit {
-    id: string;
-    originalId: string;
-    fullName: string;
-    email: string;
-    phone: string;
-    location: string;
-    bloodType: string;
-    age: number;
-    source: string;
-    auditLog: string;
-    status: string;
-    changes: {
-        field: string;
-        oldValue: string;
-        newValue: string;
-    }[];
-}
+
 
 const DonorApprovalView = () => {
-    const { donors, updateDonorStatus } = useMockData();
+    // const { donors, updateDonorStatus } = useMockData(); // Removed mock usage
+    const { toast } = useToast();
+    const [donors, setDonors] = useState<Donor[]>([]);
     const [selectedDonor, setSelectedDonor] = useState<Donor | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
     const [rejectionReason, setRejectionReason] = useState('');
+    const [isApproveModalOpen, setIsApproveModalOpen] = useState(false);
+    const [donorToApprove, setDonorToApprove] = useState<string | null>(null);
+    const [loading, setLoading] = useState(true);
 
-    // State for Pending Edits
-    const [pendingEdits, setPendingEdits] = useState<PendingEdit[]>([
-        {
-            id: 'edit-1',
-            originalId: 'donor-123',
-            fullName: 'Pending User',
-            email: 'pending@example.com',
-            phone: '+251 91 400 0004',
-            location: 'Adama',
-            bloodType: 'A+',
-            age: 25,
-            source: 'Self',
-            auditLog: 'Phone updated (10m ago)',
-            status: 'Active',
-            changes: [
-                { field: 'Phone Number', oldValue: '+251 91 400 0000', newValue: '+251 91 400 0004' },
-                { field: 'Location', oldValue: 'Addis Ababa', newValue: 'Adama' }
-            ]
-        }
-    ]);
+    // Initial load
+    useEffect(() => {
+        loadDonors();
+    }, []);
 
-    const [selectedEdit, setSelectedEdit] = useState<PendingEdit | null>(null);
-    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-
-    const pendingDonors = donors.filter(d => d.status === 'Pending');
-
-    const handleApprove = (id: string) => {
-        if (confirm('Are you sure you want to approve this donor?')) {
-            updateDonorStatus(id, 'Active');
+    const loadDonors = async () => {
+        try {
+            setLoading(true);
+            const data = await fetchDonors();
+            setDonors(data);
+        } catch (error) {
+            console.error("Failed to load donors", error);
+        } finally {
+            setLoading(false);
         }
     };
 
-    const handleReject = () => {
+
+
+
+
+    const location = useLocation();
+    const [activeTab, setActiveTab] = useState<'pending' | 'approved' | 'rejected'>('pending');
+
+    useEffect(() => {
+        if (location.state?.activeTab) {
+            setActiveTab(location.state.activeTab);
+        } else if (location.pathname.includes('approve-donor')) {
+            setActiveTab('approved');
+        } else if (location.pathname.includes('reject-donor')) {
+            setActiveTab('rejected');
+        } else {
+            setActiveTab('pending');
+        }
+    }, [location.pathname, location.state]);
+
+    // Highlighting Logic
+    useEffect(() => {
+        if (location.state?.highlightId && donors.length > 0) {
+            const id = location.state.highlightId;
+            setTimeout(() => {
+                // Find row
+                const element = document.querySelector(`tr[data-donor-id="${id}"]`);
+                if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                    // Immediate Highlight ON (Darker Grey/Black-ish)
+                    element.classList.add('bg-gray-400', 'text-white'); // Adding text-white for contrast
+
+                    // Flash 3 times
+                    let flashCount = 0;
+                    const flashInterval = setInterval(() => {
+                        element.classList.toggle('bg-gray-400');
+                        element.classList.toggle('text-white');
+                        flashCount++;
+                        if (flashCount >= 6) { // 3 full cycles (On/Off * 3)
+                            clearInterval(flashInterval);
+                            element.classList.remove('bg-gray-400', 'text-white');
+                        }
+                    }, 500); // Faster flash (500ms)
+                }
+            }, 100);
+        }
+    }, [location.state, donors]);
+
+    // Filter local state based on API data
+    const pendingDonors = donors.filter(d => !d.status || d.status.toLowerCase() === 'pending');
+    const approvedDonors = donors.filter(d => d.status?.toLowerCase() === 'active');
+    const rejectedDonors = donors.filter(d => d.status?.toLowerCase() === 'rejected');
+
+    const handleApproveClick = (id: string) => {
+        setDonorToApprove(id);
+        setIsApproveModalOpen(true);
+    };
+
+    const handleConfirmApprove = async () => {
+        if (!donorToApprove) return;
+
+        try {
+            await updateDonor(donorToApprove, { status: 'Active' });
+            // Optimistic Update: Remove from list immediately
+            setDonors(prev => prev.map(d => d.id === donorToApprove ? { ...d, status: 'Active' } : d));
+            toast.success("Donor approved successfully");
+        } catch (error) {
+            console.error("Approval failed", error);
+            toast.error("Failed to approve donor");
+        } finally {
+            setIsApproveModalOpen(false);
+            setDonorToApprove(null);
+        }
+    };
+
+    const handleReject = async () => {
         if (selectedDonor && rejectionReason.trim()) {
-            updateDonorStatus(selectedDonor.id, 'Rejected', rejectionReason);
-            setIsRejectModalOpen(false);
-            setSelectedDonor(null);
-            setRejectionReason('');
+            try {
+                await updateDonor(selectedDonor.id, { status: 'Rejected', rejectionReason } as any);
+                setDonors(prev => prev.map(d => d.id === selectedDonor.id ? { ...d, status: 'Rejected', rejectionReason } : d));
+                toast.success("Donor rejected");
+
+                setIsRejectModalOpen(false);
+                setSelectedDonor(null);
+                setRejectionReason('');
+            } catch (error) {
+                console.error("Rejection failed", error);
+                toast.error("Failed to reject donor");
+            }
+        }
+    };
+
+    const handleClear = async (id: string) => {
+        if (confirm('Are you sure you want to clear this status and move back to pending?')) {
+            try {
+                await updateDonor(id, { status: 'Pending', rejectionReason: null } as any);
+                setDonors(prev => prev.map(d => d.id === id ? { ...d, status: 'Pending', rejectionReason: undefined } : d));
+                toast.success("Status cleared, moved to Pending");
+            } catch (error) {
+                console.error("Clear failed", error);
+                toast.error("Failed to clear status");
+            }
         }
     };
 
@@ -79,193 +152,253 @@ const DonorApprovalView = () => {
         setIsModalOpen(true);
     };
 
-    // --- Edit Approval Handlers ---
-    const openEditModal = (edit: PendingEdit) => {
-        setSelectedEdit(edit);
-        setIsEditModalOpen(true);
-    };
 
-    const handleEditApprove = (id: string) => {
-        if (confirm('Are you sure you want to approve these changes?')) {
-            // In a real app, this would update the actual donor record
-            setPendingEdits(prev => prev.filter(e => e.id !== id));
-            setIsEditModalOpen(false);
-        }
-    };
-
-    const handleEditReject = (id: string) => {
-        if (confirm('Are you sure you want to reject these changes?')) {
-            setPendingEdits(prev => prev.filter(e => e.id !== id));
-            setIsEditModalOpen(false);
-        }
-    };
 
     return (
         <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-gray-900">Donor Approval</h2>
+            <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-gray-900">Donor Approval</h2>
+                <div className="flex gap-2">
+                    <button
+                        onClick={loadDonors}
+                        className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center gap-2"
+                    >
+                        <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Refresh
+                    </button>
+                </div>
+            </div>
+
+            {/* Tabs */}
+            <div className="border-b border-gray-200">
+                <nav className="-mb-px flex space-x-8">
+                    <button
+                        onClick={() => setActiveTab('pending')}
+                        className={`${activeTab === 'pending'
+                            ? 'border-purple-500 text-purple-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+                    >
+                        Pending Donors
+                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${activeTab === 'pending' ? 'bg-purple-100 text-purple-600' : 'bg-gray-100 text-gray-900'}`}>
+                            {pendingDonors.length}
+                        </span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('approved')}
+                        className={`${activeTab === 'approved'
+                            ? 'border-green-500 text-green-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+                    >
+                        Approved Donors
+                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${activeTab === 'approved' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-900'}`}>
+                            {approvedDonors.length}
+                        </span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('rejected')}
+                        className={`${activeTab === 'rejected'
+                            ? 'border-red-500 text-red-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+                    >
+                        Rejected Donors
+                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${activeTab === 'rejected' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-900'}`}>
+                            {rejectedDonors.length}
+                        </span>
+                    </button>
+                </nav>
+            </div>
+
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                {pendingDonors.length === 0 ? (
-                    <div className="p-6 text-center text-gray-500">No pending donor approvals.</div>
-                ) : (
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
-                                <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Blood Type</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Audit Log</th>
-                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                                {pendingDonors.map((donor) => (
-                                    <tr key={donor.id}>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex items-center">
-                                                <div className="ml-4">
-                                                    <div className="text-sm font-medium text-gray-900">{donor.fullName}</div>
-                                                    <div className="text-sm text-gray-500">{donor.email}</div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-sm text-gray-900">{donor.phone}</div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-sm text-gray-500">{donor.location}</div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                                                {donor.bloodType} / {donor.age} yrs
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                                // Mock logic: randomly assign source based on ID or just default to Self for now
-                                                (donor.id.includes('stf') || parseInt(donor.id) % 2 === 0) ? 'bg-purple-100 text-purple-800' : 'bg-green-100 text-green-800'
-                                                }`}>
-                                                {(donor.id.includes('stf') || parseInt(donor.id) % 2 === 0) ? 'Staff' : 'Self'}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
-                                            <div><span className="font-semibold">Registered:</span> 2h ago</div>
-                                            {(donor.id.includes('stf')) && <div><span className="font-semibold">By:</span> Nurse Joy</div>}
-                                            {/* Edits removed for Pending table */}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            <button
-                                                onClick={() => openViewModal(donor)}
-                                                className="text-purple-600 hover:text-purple-900 mr-4"
-                                                title="View Details"
-                                            >
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                            </button>
-                                            <button
-                                                onClick={() => handleApprove(donor.id)}
-                                                className="text-green-600 hover:text-green-900 mr-4"
-                                                title="Approve"
-                                            >
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                                            </button>
-                                            <button
-                                                onClick={() => openRejectModal(donor)}
-                                                className="text-red-600 hover:text-red-900"
-                                                title="Reject"
-                                            >
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                                            </button>
-                                        </td>
+                {/* PENDING TABLE */}
+                {activeTab === 'pending' && (
+                    pendingDonors.length === 0 ? (
+                        <div className="p-6 text-center text-gray-500">No pending donor approvals.</div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Blood Type</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registered</th>
+                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {pendingDonors.map((donor) => (
+                                        <tr key={donor.id} data-donor-id={donor.id} className="hover:bg-gray-50 transition-colors duration-500">
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex items-center">
+                                                    <div className="ml-4">
+                                                        <div className="text-sm font-medium text-gray-900">{donor.fullName}</div>
+                                                        <div className="text-sm text-gray-500">{donor.email}</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="text-sm text-gray-900">{donor.phone}</div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="text-sm text-gray-500">{donor.location}</div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                                                    {donor.bloodType} / {donor.age} yrs
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${donor.source === 'Staff' ? 'bg-purple-100 text-purple-800' : 'bg-green-100 text-green-800'}`}>
+                                                    {donor.source || 'Self'}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
+                                                <div><span className="font-semibold">Registered:</span> {donor.createdAt ? new Date(donor.createdAt).toLocaleDateString() : 'N/A'}</div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                <button onClick={() => openViewModal(donor)} className="text-purple-600 hover:text-purple-900 mr-4" title="View Details">
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                                </button>
+                                                <button onClick={() => handleApproveClick(donor.id)} className="text-green-600 hover:text-green-900 mr-4" title="Approve">
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                                                </button>
+                                                <button onClick={() => openRejectModal(donor)} className="text-red-600 hover:text-red-900" title="Reject">
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    )
+                )}
+
+                {/* APPROVED TABLE */}
+                {activeTab === 'approved' && (
+                    approvedDonors.length === 0 ? (
+                        <div className="p-6 text-center text-gray-500">No approved donors yet.</div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registered</th>
+                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {approvedDonors.map((donor) => (
+                                        <tr key={donor.id} data-donor-id={donor.id}>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex items-center">
+                                                    <div className="ml-4">
+                                                        <div className="text-sm font-medium text-gray-900">{donor.fullName}</div>
+                                                        <div className="text-sm text-gray-500">{donor.email}</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="text-sm text-gray-900">{donor.phone}</div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                                    Active
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
+                                                {donor.createdAt ? new Date(donor.createdAt).toLocaleDateString() : 'N/A'}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                <button onClick={() => openViewModal(donor)} className="text-purple-600 hover:text-purple-900 mr-4">View</button>
+                                                {/* Clear Button */}
+                                                <button
+                                                    onClick={() => handleClear(donor.id)}
+                                                    className="text-gray-500 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded text-xs transition-colors"
+                                                    title="Move back to Pending"
+                                                >
+                                                    Clear Status
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )
+                )}
+
+                {/* REJECTED TABLE */}
+                {activeTab === 'rejected' && (
+                    rejectedDonors.length === 0 ? (
+                        <div className="p-6 text-center text-gray-500">No rejected donors.</div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rejection Reason</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registered</th>
+                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {rejectedDonors.map((donor) => (
+                                        <tr key={donor.id} data-donor-id={donor.id}>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex items-center">
+                                                    <div className="ml-4">
+                                                        <div className="text-sm font-medium text-gray-900">{donor.fullName}</div>
+                                                        <div className="text-sm text-gray-500">{donor.email}</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="text-sm text-gray-900">{donor.phone}</div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800 truncate max-w-xs" title={donor.rejectionReason}>
+                                                    {donor.rejectionReason || 'No reason provided'}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
+                                                {donor.createdAt ? new Date(donor.createdAt).toLocaleDateString() : 'N/A'}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                <button onClick={() => openViewModal(donor)} className="text-purple-600 hover:text-purple-900 mr-4">View</button>
+                                                {/* Clear Button */}
+                                                <button
+                                                    onClick={() => handleClear(donor.id)}
+                                                    className="text-gray-500 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded text-xs transition-colors"
+                                                    title="Move back to Pending"
+                                                >
+                                                    Clear Status
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )
                 )}
             </div>
 
-            {/* Edit Donor Approval Section */}
-            <h2 className="text-2xl font-bold text-gray-900 pt-8">Edit Donor Approval</h2>
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                {pendingEdits.length === 0 ? (
-                    <div className="p-6 text-center text-gray-500">No pending edits.</div>
-                ) : (
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
-                                <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Blood Type</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                                {pendingEdits.map((donor) => (
-                                    <tr key={donor.id}>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex items-center">
-                                                <div className="ml-4">
-                                                    <div className="text-sm font-medium text-gray-900">{donor.fullName}</div>
-                                                    <div className="text-sm text-gray-500">{donor.email}</div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-sm text-gray-900">{donor.phone}</div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-sm text-gray-500">{donor.location}</div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                                                {donor.bloodType} / {donor.age} yrs
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                                                {donor.source}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
-                                            <div className="font-semibold bg-gray-100 px-2 py-1 rounded inline-block">Updated</div>
-                                            <div className="mt-1 text-gray-400 text-xs">Requested: 10m ago</div>
-                                            <div className="text-gray-500 line-clamp-1">Change: {donor.changes[0].field}</div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            <button
-                                                onClick={() => openEditModal(donor)}
-                                                className="text-purple-600 hover:text-purple-900 mr-4"
-                                                title="View Changes"
-                                            >
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                            </button>
-                                            <button
-                                                onClick={() => handleEditApprove(donor.id)}
-                                                className="text-green-600 hover:text-green-900 mr-4"
-                                                title="Approve Changes"
-                                            >
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                                            </button>
-                                            <button
-                                                onClick={() => handleEditReject(donor.id)}
-                                                className="text-red-600 hover:text-red-900"
-                                                title="Reject Changes"
-                                            >
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </div>
+
+
 
             {/* Modal for View Details */}
             {isModalOpen && selectedDonor && (
@@ -330,9 +463,8 @@ const DonorApprovalView = () => {
                                         <div><p className="text-xs text-gray-500 uppercase tracking-wide">Unique FAN ID</p><p className="font-mono bg-gray-100 px-2 py-1 rounded inline-block text-gray-800">{selectedDonor.fanNumber || 'Pending'}</p></div>
                                         <div><p className="text-xs text-gray-500 uppercase tracking-wide">Username</p><p className="font-medium text-gray-800">{selectedDonor.username}</p></div>
                                         <div><p className="text-xs text-gray-500 uppercase tracking-wide">Source</p>
-                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${(selectedDonor.id.includes('stf') || parseInt(selectedDonor.id) % 2 === 0) ? 'bg-purple-100 text-purple-800' : 'bg-green-100 text-green-800'
-                                                }`}>
-                                                {(selectedDonor.id.includes('stf') || parseInt(selectedDonor.id) % 2 === 0) ? 'Staff Register' : 'Self Register'}
+                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${selectedDonor.source === 'Staff' ? 'bg-purple-100 text-purple-800' : 'bg-green-100 text-green-800'}`}>
+                                                {selectedDonor.source || 'Self'}
                                             </span>
                                         </div>
                                     </div>
@@ -369,6 +501,35 @@ const DonorApprovalView = () => {
                                         )}
                                     </div>
                                 </div>
+
+                                {/* ID Cards */}
+                                {(selectedDonor.idCardFront || selectedDonor.idCardBack) && (
+                                    <div>
+                                        <h4 className="text-lg font-bold text-gray-800 mb-3 border-b border-gray-100 pb-1 pt-4">ID Cards</h4>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            {selectedDonor.idCardFront && (
+                                                <div>
+                                                    <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Front Side</p>
+                                                    <img
+                                                        src={selectedDonor.idCardFront}
+                                                        alt="Front ID"
+                                                        className="w-full h-auto object-contain rounded-lg border border-gray-200 bg-gray-50"
+                                                    />
+                                                </div>
+                                            )}
+                                            {selectedDonor.idCardBack && (
+                                                <div>
+                                                    <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Back Side</p>
+                                                    <img
+                                                        src={selectedDonor.idCardBack}
+                                                        alt="Back ID"
+                                                        className="w-full h-auto object-contain rounded-lg border border-gray-200 bg-gray-50"
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="mt-8 flex justify-end gap-3 border-t pt-4">
@@ -379,63 +540,7 @@ const DonorApprovalView = () => {
                 </div>
             )}
 
-            {/* Edit Comparison Modal */}
-            {isEditModalOpen && selectedEdit && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full">
-                        <div className="p-6">
-                            <div className="flex justify-between items-start mb-6 border-b pb-4">
-                                <div>
-                                    <h3 className="text-2xl font-bold text-gray-900">Review Changes</h3>
-                                    <p className="text-sm text-gray-500 mt-1">Review the changes requested by {selectedEdit.fullName}</p>
-                                </div>
-                                <button onClick={() => setIsEditModalOpen(false)} className="text-gray-400 hover:text-gray-500">
-                                    <span className="sr-only">Close</span>
-                                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                </button>
-                            </div>
 
-                            <div className="overflow-hidden border rounded-lg">
-                                <table className="min-w-full divide-y divide-gray-200">
-                                    <thead className="bg-gray-50">
-                                        <tr>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Field Name</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/3">Original Value</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/3">New Value</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="bg-white divide-y divide-gray-200">
-                                        {selectedEdit.changes.map((change, idx) => (
-                                            <tr key={idx}>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{change.field}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-red-500 bg-red-50">{change.oldValue}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 bg-green-50 font-semibold">{change.newValue}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            <div className="mt-8 flex justify-end gap-3">
-                                <button
-                                    onClick={() => handleEditReject(selectedEdit.id)}
-                                    className="px-4 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 font-medium"
-                                >
-                                    Reject Changes
-                                </button>
-                                <button
-                                    onClick={() => handleEditApprove(selectedEdit.id)}
-                                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
-                                >
-                                    Approve Changes
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* Reject Modal */}
             {isRejectModalOpen && selectedDonor && (
@@ -468,6 +573,17 @@ const DonorApprovalView = () => {
                     </div>
                 </div>
             )}
+            {/* Approve Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={isApproveModalOpen}
+                onClose={() => setIsApproveModalOpen(false)}
+                onConfirm={handleConfirmApprove}
+                title="Approve Donor"
+                message="Are you sure you want to approve this donor? They will be granted active status."
+                confirmLabel="Approve"
+                cancelLabel="Cancel"
+                type="success"
+            />
         </div>
     );
 };

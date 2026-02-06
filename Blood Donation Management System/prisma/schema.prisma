@@ -12,9 +12,11 @@ model Donor {
   fullName       String
   email          String    @unique
   phone          String
+  landline       String?
   bloodType      String
   birthDate      DateTime?
   age            Int?
+  weight         String?
   gender         String?
   medicalCondition String?
   profilePicture String?
@@ -38,6 +40,10 @@ model Donor {
   hasDisability  String?
   disabilityType String?
 
+  maritalStatus  String?
+  idCardFront    String?
+  idCardBack     String?
+
   // Appointment Details
   donationAppointmentDate DateTime?
   appointmentRegion      String?
@@ -59,6 +65,7 @@ model Donor {
   username       String?   @unique
   password       String?
   createdAt      DateTime  @default(now())
+  lotteryWinners LotteryWinner[]
 }
 
 model Hospital {
@@ -66,6 +73,7 @@ model Hospital {
   name      String
   email     String    @unique
   phone     String
+  landline  String?
   
    // Contact
   contactDoctorName  String?
@@ -87,7 +95,11 @@ model Hospital {
   // License & Type
   licenseName   String?
   licenseNumber String?
+  businessLicenseImage String?
   hospitalType  String? // 'Government Hospital' | 'Non-Government Hospital'
+  
+  idCardFront    String?
+  idCardBack     String?
   
   // Auth
   username      String?   @unique
@@ -112,6 +124,7 @@ model Request {
   urgency     String
   unitsNeeded Int
   status      String
+  rejectionReason String?
   requestedAt DateTime @default(now())
   createdAt   DateTime @default(now())
 }
@@ -159,10 +172,90 @@ model Admin {
   street         String?
   homeNumber     String?
   
+  // Personal Info
+  bloodType      String?
+  birthDate      DateTime?
+  age            Int?
+  gender         String?
+  maritalStatus  String?
+  fanNumber      String?
+  idCardFront    String?
+  idCardBack     String?
+  landline       String?
+  
   // GPS
   location       String?   // GPS string if needed
   latitude       Float?
   longitude      Float?
+  activityLogs   AdminActivityLog[]
 
   createdAt DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  message   String
+  type      String
+  relatedId String?
+  forRole   String?
+  userId    String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model LotteryWinner {
+  id        String   @id @default(uuid())
+  donor     Donor    @relation(fields: [donorId], references: [id])
+  donorId   String
+  tierName  String
+  points    Int
+  month     DateTime
+  award     String
+  createdAt DateTime @default(now())
+}
+
+model Staff {
+  id        String   @id
+  username  String?
+  fullName  String
+  email     String   @unique
+  phone     String?
+  landline  String?
+  role      String?
+  status    String?
+  password  String?
+  profilePicture String?
+  bloodType String?
+  birthDate DateTime?
+  age       Int?
+  maritalStatus String?
+  gender    String?
+  fanNumber String?
+  idCardFront String?
+  idCardBack String?
+  medicalCondition String?
+  hasDisability String?
+  disabilityType String?
+  region    String?
+  city      String?
+  subCity   String?
+  woreda    String?
+  kebele    String?
+  street    String?
+  homeNumber String?
+  location  String?
+  latitude  Float?
+  longitude Float?
+  createdAt DateTime @default(now())
+}
+
+model AdminActivityLog {
+  id         String   @id @default(uuid())
+  admin      Admin    @relation(fields: [adminId], references: [id])
+  adminId    String
+  actionType String
+  targetId   String?
+  targetName String?
+  details    String?
+  createdAt  DateTime @default(now())
 }

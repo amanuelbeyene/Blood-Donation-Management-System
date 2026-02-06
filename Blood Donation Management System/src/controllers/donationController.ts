@@ -15,3 +15,7 @@ export const updateDonation = async (id: string, data: any): Promise<DonationRec
     const response = await apiClient.put(`/donations/${id}`, data);
     return response.data;
 };
+
+export const deleteDonation = async (id: string): Promise<void> => {
+    await apiClient.delete(`/donations/${id}`);
+};

@@ -198,6 +198,7 @@ export const hospitals: Hospital[] = [
     },
     businessLicenseName: 'Ministry of Health License',
     businessLicenseNumber: 'BLH-2024-001',
+    businessLicenseImage: 'https://placehold.co/600x800?text=License+Document',
     hospitalType: 'Government Hospital',
     profilePicture: undefined,
     latitude: 9.03,
@@ -221,6 +222,7 @@ export const hospitals: Hospital[] = [
     },
     businessLicenseName: 'Ministry of Health License',
     businessLicenseNumber: 'SPH-2024-002',
+    businessLicenseImage: 'https://placehold.co/600x800?text=License+Document',
     hospitalType: 'Government Hospital',
     profilePicture: undefined,
     latitude: 9.01,
@@ -244,6 +246,7 @@ export const hospitals: Hospital[] = [
     },
     businessLicenseName: 'Ministry of Health License',
     businessLicenseNumber: 'JUH-2024-003',
+    businessLicenseImage: 'https://placehold.co/600x800?text=License+Document',
     hospitalType: 'Government Hospital',
     profilePicture: undefined,
     latitude: 7.67,
@@ -268,6 +271,7 @@ export const hospitals: Hospital[] = [
     contactDoctorPhone: '+251922000000',
     businessLicenseName: 'Pending License',
     businessLicenseNumber: 'PL-001',
+    businessLicenseImage: 'https://placehold.co/600x800?text=License+Document',
   },
 ];
 

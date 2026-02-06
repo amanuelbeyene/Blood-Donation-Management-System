@@ -1,34 +1,27 @@
 import { FormEvent, useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { validatePassword } from '../../../utils/validation';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useLanguage } from '../../../contexts/LanguageContext';
-import { fetchDonorById } from '../../../controllers/donorController';
-
-
+import { fetchDonorById, updateDonor } from '../../../controllers/donorController';
+import { useToast } from '../../../contexts/ToastContext';
 
 const EditProfileView = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
     const { t } = useLanguage();
+    const { toast } = useToast();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [profilePicture, setProfilePicture] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isLocating, setIsLocating] = useState(false);
 
-    // Initial empty state matching Donor model fields used in Registration
     const [formState, setFormState] = useState({
-        fullName: '',
         email: '',
         phone: '',
-        bloodType: '',
-        birthDate: '',
-        age: '',
-        gender: '',
+        weight: '',
         maritalStatus: '',
-        fanNumber: '',
-        username: '',
-        password: '',
-        confirmPassword: '',
+
         // Address
         region: '',
         city: '',
@@ -40,31 +33,25 @@ const EditProfileView = () => {
         location: '',
         latitude: null as number | null,
         longitude: null as number | null,
-        // Medical
-        medicalCondition: '',
-        hasDisability: '',
-        disabilityType: '',
 
+        // Password Change
+        currentPassword: '',
+        newPassword: '',
+        confirmNewPassword: '',
     });
 
     useEffect(() => {
         if (user?.id) {
             fetchDonorById(user.id).then(donor => {
                 if (donor) {
-                    setFormState({
-                        fullName: donor.fullName || '',
+                    setFormState(prev => ({
+                        ...prev,
                         email: donor.email || '',
                         phone: donor.phone || '',
-                        bloodType: donor.bloodType || '',
-                        birthDate: donor.birthDate || '',
-                        age: donor.age?.toString() || calculateAge(donor.birthDate || ''),
-                        gender: donor.gender || '',
+                        weight: donor.weight?.toString() || '',
                         maritalStatus: donor.maritalStatus || '',
-                        fanNumber: donor.fanNumber || '',
-                        username: donor.username || '',
-                        password: donor.password || '', // Note: In a real app we might not pre-fill password for security
 
-                        region: donor.locationDetails?.region || donor.location || '', // Fallback for old data
+                        region: donor.locationDetails?.region || donor.location || '',
                         city: donor.locationDetails?.city || '',
                         subCity: donor.locationDetails?.subCity || '',
                         woreda: donor.locationDetails?.woreda || '',
@@ -75,13 +62,7 @@ const EditProfileView = () => {
                         location: donor.location || '',
                         latitude: donor.latitude || null,
                         longitude: donor.longitude || null,
-
-                        medicalCondition: donor.medicalCondition || '',
-                        hasDisability: donor.hasDisability || '',
-
-                        disabilityType: donor.disabilityType || '',
-                        confirmPassword: donor.password || '', // Pre-fill with password to pass match check if unchanged
-                    });
+                    }));
                     if (donor.profilePicture) {
                         setProfilePicture(donor.profilePicture);
                     }
@@ -91,43 +72,34 @@ const EditProfileView = () => {
         }
     }, [user?.id]);
 
-    const calculateAge = (dateString: string) => {
-        if (!dateString) return '';
-        const today = new Date();
-        const dob = new Date(dateString);
-        if (Number.isNaN(dob.getTime())) return '';
-        let age = today.getFullYear() - dob.getFullYear();
-        const m = today.getMonth() - dob.getMonth();
-        if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
-            age -= 1;
-        }
-        return age.toString();
-    };
-
-    const handleGetLocation = () => {
-        if (!navigator.geolocation) {
-            alert('Geolocation is not supported by your browser');
-            return;
-        }
-
+    const handleGetLocation = async () => {
         setIsLocating(true);
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const { latitude, longitude } = position.coords;
-                setFormState((prev: any) => ({
-                    ...prev,
-                    location: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
-                    latitude,
-                    longitude,
-                }));
-                setIsLocating(false);
-            },
-            (error) => {
-                console.error('Error getting location:', error);
-                alert('Unable to retrieve your location');
-                setIsLocating(false);
-            }
-        );
+        try {
+            const { getCurrentLocation, getAddressFromCoordinates } = await import('../../../utils/geoUtils');
+            const position = await getCurrentLocation();
+            const { latitude, longitude } = position.coords;
+
+            const address = await getAddressFromCoordinates(latitude, longitude);
+
+            setFormState((prev) => ({
+                ...prev,
+                location: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+                latitude,
+                longitude,
+                region: address.region || prev.region || '',
+                city: address.city || prev.city || '',
+                subCity: address.subCity || prev.subCity || '',
+                woreda: address.woreda || prev.woreda || '',
+                kebele: address.kebele || prev.kebele || '',
+                street: address.street || prev.street || '',
+                homeNumber: address.homeNumber || prev.homeNumber || ''
+            }));
+        } catch (error: any) {
+            console.error('Error getting location:', error);
+            toast.error(error.message || 'Unable to retrieve location');
+        } finally {
+            setIsLocating(false);
+        }
     };
 
     const handleProfilePictureChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -141,16 +113,57 @@ const EditProfileView = () => {
         }
     };
 
-    const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        if (formState.password !== formState.confirmPassword) {
-            alert('Passwords do not match!');
+
+        // Password Validation
+        if (formState.newPassword || formState.confirmNewPassword) {
+            if (!formState.currentPassword) {
+                toast.error('Please enter your current password to set a new one.');
+                return;
+            }
+            if (formState.newPassword !== formState.confirmNewPassword) {
+                toast.error('New passwords do not match!');
+                return;
+            }
+            const passwordValidation = validatePassword(formState.newPassword);
+            if (!passwordValidation.isValid) {
+                toast.error(passwordValidation.message);
+                return;
+            }
+        }
+
+        if (!formState.location || !formState.latitude || !formState.longitude) {
+            toast.error('Location (GPS) is required. Please use the "Get Location" button.');
             return;
         }
-        // Here you would call updateDonor(user.id, formState)
-        // Ensure proper object structure for update logic if needed
-        alert('Profile updated successfully!');
-        navigate('/donor-dashboard');
+
+        try {
+            if (!user?.id) throw new Error('User not found');
+
+            const updateData = {
+                ...formState,
+                profilePicture: profilePicture || undefined,
+            };
+
+            await updateDonor(user.id, updateData);
+
+            toast.success('Profile updated successfully!');
+            // Clear password fields on success
+            setFormState(prev => ({
+                ...prev,
+                currentPassword: '',
+                newPassword: '',
+                confirmNewPassword: ''
+            }));
+
+            // Optional: navigate away or stay
+            // navigate('/donor-dashboard'); 
+        } catch (error: any) {
+            console.error('Update failed:', error);
+            const msg = error.response?.data?.message || error.message || 'Failed to update profile';
+            toast.error(msg);
+        }
     };
 
     if (isLoading) {
@@ -200,17 +213,6 @@ const EditProfileView = () => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Full Name */}
-                    <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-slate-700 mb-2">{t('fullName' as any) || 'Full Name'} <span className="text-red-500">*</span></label>
-                        <input
-                            required
-                            type="text"
-                            value={formState.fullName}
-                            onChange={(e) => setFormState(prev => ({ ...prev, fullName: e.target.value }))}
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition"
-                        />
-                    </div>
 
                     {/* Email */}
                     <div>
@@ -220,8 +222,14 @@ const EditProfileView = () => {
                             type="email"
                             value={formState.email}
                             onChange={(e) => setFormState(prev => ({ ...prev, email: e.target.value }))}
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition"
+                            className={`w-full rounded-xl border px-4 py-3 focus:outline-none focus:ring-4 transition ${formState.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formState.email)
+                                ? 'border-red-500 focus:border-red-500 focus:ring-red-500/10 bg-red-50'
+                                : 'border-slate-200 focus:border-primary focus:ring-primary/10'
+                                }`}
                         />
+                        {formState.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formState.email) && (
+                            <p className="text-red-500 text-xs mt-1">Example: amanuelbeyenee@gmail.com</p>
+                        )}
                     </div>
 
                     {/* Phone */}
@@ -231,71 +239,29 @@ const EditProfileView = () => {
                             required
                             type="tel"
                             value={formState.phone}
-                            onChange={(e) => setFormState(prev => ({ ...prev, phone: e.target.value }))}
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition"
+                            onChange={(e) => setFormState(prev => ({ ...prev, phone: e.target.value.replace(/[^\d+]/g, '') }))}
+                            className={`w-full rounded-xl border px-4 py-3 focus:outline-none focus:ring-4 transition ${formState.phone && (formState.phone.length !== 10 && formState.phone.length !== 13)
+                                ? 'border-red-500 focus:border-red-500 focus:ring-red-500/10 bg-red-50'
+                                : 'border-slate-200 focus:border-primary focus:ring-primary/10'
+                                }`}
+                            placeholder="+251 911 / 0911"
                         />
+                        {formState.phone && (formState.phone.length !== 10 && formState.phone.length !== 13) && (
+                            <p className="text-red-500 text-xs mt-1">Must be 10 or 13 digits.</p>
+                        )}
                     </div>
 
-                    {/* Blood Type */}
+                    {/* Weight */}
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">{t('bloodType' as any) || 'Blood Type'} <span className="text-red-500">*</span></label>
-                        <select
-                            required
-                            value={formState.bloodType}
-                            onChange={(e) => setFormState(prev => ({ ...prev, bloodType: e.target.value }))}
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition"
-                        >
-                            <option value="">Select Blood Type</option>
-                            {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(t => (
-                                <option key={t} value={t}>{t}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* Birth Date */}
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">{t('birthDate' as any) || 'Birth Date'} <span className="text-red-500">*</span></label>
-                        <input
-                            required
-                            type="date"
-                            value={formState.birthDate}
-                            onChange={(e) => {
-                                const val = e.target.value;
-                                setFormState(prev => ({
-                                    ...prev,
-                                    birthDate: val,
-                                    age: calculateAge(val)
-                                }));
-                            }}
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition"
-                        />
-                    </div>
-
-                    {/* Age */}
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">{t('age' as any) || 'Age'} <span className="text-red-500">*</span></label>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">Weight (Kg) <span className="text-red-500">*</span></label>
                         <input
                             required
                             type="number"
-                            value={formState.age}
-                            onChange={(e) => setFormState(prev => ({ ...prev, age: e.target.value }))}
+                            min={45}
+                            value={formState.weight}
+                            onChange={(e) => setFormState(prev => ({ ...prev, weight: e.target.value }))}
                             className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition"
                         />
-                    </div>
-
-                    {/* Gender */}
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">{t('gender' as any) || 'Gender'} <span className="text-red-500">*</span></label>
-                        <select
-                            required
-                            value={formState.gender}
-                            onChange={(e) => setFormState(prev => ({ ...prev, gender: e.target.value }))}
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition"
-                        >
-                            <option value="">Select Gender</option>
-                            <option value="Male">Male</option>
-                            <option value="Female">Female</option>
-                        </select>
                     </div>
 
                     {/* Marital Status */}
@@ -316,31 +282,16 @@ const EditProfileView = () => {
                         </select>
                     </div>
 
-                    {/* FAN Number */}
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">FAN Number <span className="text-red-500">*</span></label>
-                        <input
-                            required
-                            type="text"
-                            maxLength={16}
-                            value={formState.fanNumber}
-                            onChange={(e) => {
-                                const val = e.target.value.replace(/\D/g, '');
-                                setFormState(prev => ({ ...prev, fanNumber: val }));
-                            }}
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition"
-                        />
-                    </div>
-
                     {/* Address Section */}
                     <div className="md:col-span-2 pt-4">
                         <h3 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-2 mb-4">{t('address' as any) || 'Address'}</h3>
                     </div>
 
                     <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Location (GPS)</label>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">Location (GPS) <span className="text-red-500">*</span></label>
                         <div className="flex gap-2">
                             <input
+                                required
                                 type="text"
                                 value={formState.location}
                                 onChange={(e) => setFormState(prev => ({ ...prev, location: e.target.value }))}
@@ -358,179 +309,54 @@ const EditProfileView = () => {
                         </div>
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">{t('region' as any) || 'Region'} <span className="text-red-500">*</span></label>
-                        <input
-                            required
-                            type="text"
-                            value={formState.region}
-                            onChange={(e) => setFormState(prev => ({ ...prev, region: e.target.value }))}
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">{t('city' as any) || 'City'} <span className="text-red-500">*</span></label>
-                        <input
-                            required
-                            type="text"
-                            value={formState.city}
-                            onChange={(e) => setFormState(prev => ({ ...prev, city: e.target.value }))}
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">{t('subCity' as any) || 'Sub-City'}</label>
-                        <input
-                            type="text"
-                            value={formState.subCity}
-                            onChange={(e) => setFormState(prev => ({ ...prev, subCity: e.target.value }))}
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">{t('woreda' as any) || 'Woreda'}</label>
-                        <input
-                            type="text"
-                            value={formState.woreda}
-                            onChange={(e) => setFormState(prev => ({ ...prev, woreda: e.target.value }))}
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">{t('kebele' as any) || 'Kebele'}</label>
-                        <input
-                            type="text"
-                            value={formState.kebele}
-                            onChange={(e) => setFormState(prev => ({ ...prev, kebele: e.target.value }))}
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">{t('street' as any) || 'Street'}</label>
-                        <input
-                            type="text"
-                            value={formState.street}
-                            onChange={(e) => setFormState(prev => ({ ...prev, street: e.target.value }))}
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">{t('homeNumber' as any) || 'Home Number'}</label>
-                        <input
-                            type="text"
-                            value={formState.homeNumber}
-                            onChange={(e) => setFormState(prev => ({ ...prev, homeNumber: e.target.value }))}
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition"
-                        />
-                    </div>
-
-
-
-
-
-                    {/* Medical Condition & Disability */}
-                    <div className="md:col-span-2 pt-4">
-                        <h3 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-2 mb-4">Medical & Disability Info</h3>
-                    </div>
-
-                    <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-slate-700 mb-2">{t('medicalCondition' as any) || 'Medical Condition'}</label>
-                        <select
-                            value={formState.medicalCondition}
-                            onChange={(e) => setFormState(prev => ({ ...prev, medicalCondition: e.target.value }))}
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition"
-                        >
-                            <option value="">Select Condition</option>
-                            <option value="Normal">Normal</option>
-                            <option value="Teeth Case">Teeth Case</option>
-                            <option value="Back Problems">Back Problems</option>
-                            <option value="Cancer">Cancer</option>
-                            <option value="Cardiovascular Disease">Cardiovascular Disease</option>
-                            <option value="Chronic Kidney Disease">Chronic Kidney Disease</option>
-                            <option value="Mental and Behavioral Conditions">Mental and Behavioral Conditions</option>
-                            <option value="other Health Case">Other Health Case</option>
-                        </select>
-                    </div>
-
-                    <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Has Disabilities?</label>
-                        <select
-                            value={formState.hasDisability}
-                            onChange={(e) => {
-                                const val = e.target.value;
-                                setFormState(prev => ({
-                                    ...prev,
-                                    hasDisability: val,
-                                    disabilityType: val === 'No' ? '' : prev.disabilityType
-                                }));
-                            }}
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition"
-                        >
-                            <option value="">Select</option>
-                            <option value="Yes">Yes</option>
-                            <option value="No">No</option>
-                        </select>
-                    </div>
-
-                    {formState.hasDisability === 'Yes' && (
-                        <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-slate-700 mb-2">Disabilities List</label>
-                            <select
-                                value={formState.disabilityType}
-                                onChange={(e) => setFormState(prev => ({ ...prev, disabilityType: e.target.value }))}
+                    {['region', 'city', 'subCity', 'woreda', 'kebele', 'street', 'homeNumber'].map((field) => (
+                        <div key={field}>
+                            <label className="block text-sm font-medium text-slate-700 mb-2 capitalize">{field === 'homeNumber' ? 'Home Number' : t(field as any) || field} {['region', 'city'].includes(field) && <span className="text-red-500">*</span>}</label>
+                            <input
+                                required={['region', 'city'].includes(field)}
+                                type="text"
+                                value={(formState as any)[field]}
+                                onChange={(e) => setFormState(prev => ({ ...prev, [field]: e.target.value }))}
                                 className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition"
-                            >
-                                <option value="">Select Disability</option>
-                                <option value="Physical">Physical</option>
-                                <option value="Mobility Issues">Mobility Issues</option>
-                                <option value="Blindness">Blindness</option>
-                                <option value="Deafness">Deafness</option>
-                            </select>
+                            />
                         </div>
-                    )}
+                    ))}
 
-
-                    {/* Account Info */}
+                    {/* Account Info - Change Password */}
                     <div className="md:col-span-2 pt-4">
-                        <h3 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-2 mb-4">Account Information</h3>
+                        <h3 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-2 mb-4">Change Password</h3>
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">{t('username' as any) || 'Username'} <span className="text-red-500">*</span></label>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">Current Password</label>
                         <input
-                            required
-                            type="text"
-                            value={formState.username}
-                            onChange={(e) => setFormState(prev => ({ ...prev, username: e.target.value }))}
+                            type="password"
+                            value={formState.currentPassword}
+                            onChange={(e) => setFormState(prev => ({ ...prev, currentPassword: e.target.value }))}
                             className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition"
+                            placeholder="Enter to change password"
                         />
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">{t('password' as any) || 'Password'} <span className="text-red-500">*</span></label>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">New Password</label>
                         <input
-                            required
                             type="password"
-                            value={formState.password}
-                            onChange={(e) => setFormState(prev => ({ ...prev, password: e.target.value }))}
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition"
+                            value={formState.newPassword}
+                            onChange={(e) => setFormState(prev => ({ ...prev, newPassword: e.target.value }))}
+                            disabled={!formState.currentPassword}
+                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition disabled:bg-slate-50 disabled:text-slate-400"
                         />
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Confirm Password <span className="text-red-500">*</span></label>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">Confirm New Password</label>
                         <input
-                            required
                             type="password"
-                            value={formState.confirmPassword}
-                            onChange={(e) => setFormState(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition"
+                            value={formState.confirmNewPassword}
+                            onChange={(e) => setFormState(prev => ({ ...prev, confirmNewPassword: e.target.value }))}
+                            disabled={!formState.newPassword}
+                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition disabled:bg-slate-50 disabled:text-slate-400"
                         />
                     </div>
 

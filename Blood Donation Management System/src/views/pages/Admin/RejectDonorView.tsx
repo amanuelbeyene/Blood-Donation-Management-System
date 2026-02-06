@@ -1,20 +1,32 @@
-import { useMockData } from '../../../contexts/MockDataContext';
+import { useEffect, useState } from 'react';
+import { fetchDonors } from '../../../controllers/donorController';
 import { Donor } from '../../../models/Donor';
 
 const RejectDonorView = () => {
-    const { donors } = useMockData();
+    const [rejectedDonors, setRejectedDonors] = useState<Donor[]>([]);
+    const [loading, setLoading] = useState(true);
 
-    // In a real app, this would fetch rejected status from backend. 
-    // Since mock data is static, I'm simulating that we might have some rejected ones, 
-    // or relying on previous state changes if they persisted (which they don't in this simulated env).
-    // For demonstration, I will filter for 'Rejected' even if mockData has none initially (unless I add one).
-    const rejectedDonors = donors.filter(d => d.status === 'Rejected');
+    useEffect(() => {
+        const loadDonors = async () => {
+            try {
+                const data = await fetchDonors();
+                setRejectedDonors(data.filter(d => d.status?.toLowerCase() === 'rejected'));
+            } catch (error) {
+                console.error('Failed to fetch rejected donors', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        loadDonors();
+    }, []);
 
     return (
         <div className="space-y-6">
             <h2 className="text-2xl font-bold text-gray-900">Rejected Donors</h2>
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                {rejectedDonors.length === 0 ? (
+                {loading ? (
+                    <div className="p-6 text-center text-gray-500">Loading...</div>
+                ) : rejectedDonors.length === 0 ? (
                     <div className="p-6 text-center text-gray-500">No rejected donors found.</div>
                 ) : (
                     <div className="overflow-x-auto">
@@ -38,7 +50,7 @@ const RejectDonorView = () => {
                                             <div className="text-sm text-gray-900">{donor.phone}</div>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <div className="text-sm text-red-600">{donor.rejectionReason || 'No reason provided'}</div>
+                                            <div className="text-sm text-red-600">{(donor as any).rejectionReason || 'No reason provided'}</div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">

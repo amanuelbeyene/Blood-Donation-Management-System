@@ -2,15 +2,27 @@ import { FormEvent, useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
 import { fetchHospitalById } from '../../../controllers/hospitalController';
+import { createRequest } from '../../../controllers/requestController';
+import { useToast } from '../../../contexts/ToastContext';
+import { fetchDonors } from '../../../controllers/donorController';
+import type { Donor } from '../../../models/Donor';
 
 const EmergencyRequestView = () => {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [isLocating, setIsLocating] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [matchingDonors, setMatchingDonors] = useState<Donor[]>([]);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [isSearchingDonors, setIsSearchingDonors] = useState(false);
 
   const [formState, setFormState] = useState({
     bloodType: '',
     urgencyLevel: '',
+    unitsNeeded: '',
+    patientName: '',
+
+    // Hospital Info
 
     // Hospital Info
     hospitalName: '',
@@ -57,9 +69,52 @@ const EmergencyRequestView = () => {
     }
   }, [user]);
 
+  const getCompatibleBloodTypes = (targetType: string): string[] => {
+    const map: Record<string, string[]> = {
+      'A+': ['A+', 'A-', 'O+', 'O-'],
+      'A-': ['A-', 'O-'],
+      'B+': ['B+', 'B-', 'O+', 'O-'],
+      'B-': ['B-', 'O-'],
+      'AB+': ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'],
+      'AB-': ['AB-', 'A-', 'B-', 'O-'],
+      'O+': ['O+', 'O-'],
+      'O-': ['O-']
+    };
+    return map[targetType] || [];
+  };
+
+  const handleSearchDonors = async () => {
+    if (!formState.bloodType) {
+      toast.error('Please select a blood type first');
+      return;
+    }
+
+    setIsSearchingDonors(true);
+    setHasSearched(true);
+    try {
+      const allDonors = await fetchDonors();
+      const matches = allDonors.filter(donor =>
+        donor.status === 'Active' &&
+        donor.bloodType === formState.bloodType &&
+        donor.availability === 'ready'
+      );
+      setMatchingDonors(matches);
+      if (matches.length === 0) {
+        toast.info('No matching active donors found at this moment.');
+      } else {
+        toast.success(`Found ${matches.length} compatible donors`);
+      }
+    } catch (error) {
+      console.error('Failed to search donors', error);
+      toast.error('Failed to search donors');
+    } finally {
+      setIsSearchingDonors(false);
+    }
+  };
+
   const handleGetLocation = () => {
     if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser');
+      toast.error('Geolocation is not supported by your browser');
       return;
     }
 
@@ -77,16 +132,38 @@ const EmergencyRequestView = () => {
       },
       (error) => {
         console.error('Error getting location:', error);
-        alert('Unable to retrieve your location');
+        toast.error('Unable to retrieve your location');
         setIsLocating(false);
       }
     );
   };
 
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    alert('Emergency request submitted! Backend integration coming soon.');
+
+    if (!user?.id) {
+      toast.error('You must be logged in to submit a request');
+      return;
+    }
+
+    try {
+      await createRequest({
+        hospitalId: user.id,
+        patient: formState.patientName || 'Anonymous',
+        bloodType: formState.bloodType as any,
+        urgency: formState.urgencyLevel as any, // 'emergency' | 'high' | 'standard'
+        unitsNeeded: parseInt(formState.unitsNeeded) || 1,
+        note: formState.additionalNotes,
+        status: 'pending'
+      });
+      toast.success('Emergency request submitted successfully!');
+      // Reset sensitive fields or redirect
+      setFormState(prev => ({ ...prev, bloodType: '', urgencyLevel: '', unitsNeeded: '', patientName: '', additionalNotes: '' }));
+    } catch (error) {
+      console.error("Failed to submit request", error);
+      toast.error('Failed to submit emergency request. Please try again.');
+    }
   };
 
   if (isLoading) {
@@ -146,10 +223,38 @@ const EmergencyRequestView = () => {
                 className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200"
               >
                 <option value="">Select urgency</option>
-                <option value="critical">Critical - Immediate Need</option>
-                <option value="urgent">Urgent - Within 24 hours</option>
-                <option value="moderate">Moderate - Within 3 days</option>
+                <option value="emergency">Critical - Immediate Need</option>
+                <option value="high">Urgent - Within 24 hours</option>
+                <option value="standard">Moderate - Within 3 days</option>
               </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Units Needed <span className="text-red-500">*</span>
+              </label>
+              <input
+                required
+                type="number"
+                min="1"
+                value={formState.unitsNeeded}
+                onChange={(e) => setFormState((prev) => ({ ...prev, unitsNeeded: e.target.value }))}
+                className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200"
+                placeholder="e.g. 2"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Patient Name (Optional)
+              </label>
+              <input
+                type="text"
+                value={formState.patientName}
+                onChange={(e) => setFormState((prev) => ({ ...prev, patientName: e.target.value }))}
+                className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200"
+                placeholder="Patient Name or ID"
+              />
             </div>
           </div>
 
@@ -193,8 +298,14 @@ const EmergencyRequestView = () => {
                   type="email"
                   value={formState.email}
                   onChange={(e) => setFormState(prev => ({ ...prev, email: e.target.value }))}
-                  className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200"
+                  className={`w-full rounded-lg border px-4 py-3 focus:outline-none focus:ring-2 transition ${formState.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formState.email)
+                    ? 'border-red-500 bg-red-50 focus:border-red-500 focus:ring-red-200'
+                    : 'border-slate-300 focus:border-red-500 focus:ring-red-200'
+                    }`}
                 />
+                {formState.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formState.email) && (
+                  <p className="text-red-500 text-xs mt-1">Example: amanuelbeyenee@gmail.com</p>
+                )}
               </div>
             </div>
           </div>
@@ -267,35 +378,64 @@ const EmergencyRequestView = () => {
             </button>
             <button
               type="button"
+              onClick={handleSearchDonors}
+              disabled={isSearchingDonors}
               className="rounded-lg border border-slate-300 bg-white px-6 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
             >
-              Search Donors
+              {isSearchingDonors ? 'Searching...' : 'Search Donors'}
             </button>
           </div>
         </form>
       </div>
 
       {/* Matching Donors Section */}
-      <div className="rounded-xl bg-white border border-slate-200 p-8 shadow-lg">
-        <h2 className="text-xl font-bold text-slate-900 mb-6">Matching Donors (0)</h2>
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100">
-            <svg className="h-8 w-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </div>
-          <h3 className="text-lg font-bold text-slate-900">No Matching Donors Found</h3>
-          <p className="mt-2 text-slate-600">
-            Unfortunately, we couldn't find any donors with compatible blood type. Please try again later or contact
-            hospitals directly.
-          </p>
+      {hasSearched && (
+        <div className="rounded-xl bg-white border border-slate-200 p-8 shadow-lg">
+          <h2 className="text-xl font-bold text-slate-900 mb-6">Matching Donors ({matchingDonors.length})</h2>
+
+          {matchingDonors.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100">
+                <svg className="h-8 w-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </div>
+              <h3 className="text-lg font-bold text-slate-900">No Matching Donors Found</h3>
+              <p className="mt-2 text-slate-600">
+                Unfortunately, we couldn't find any active donors with {formState.bloodType} blood type.
+                Please try again later or contact hospitals directly.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {matchingDonors.map(donor => (
+                <div key={donor.id} className="border border-slate-200 rounded-lg p-4 hover:shadow-md transition">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <h4 className="font-semibold text-slate-900">{donor.fullName}</h4>
+                      <p className="text-sm text-slate-500">{donor.location || 'Location not specified'}</p>
+                    </div>
+                    <span className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-bold">
+                      {donor.bloodType}
+                    </span>
+                  </div>
+                  <div className="text-sm space-y-1 text-slate-600 mt-2">
+                    <p><span className="font-medium">Phone:</span> {donor.phone}</p>
+                    <p><span className="font-medium">Status:</span>
+                      <span className="text-green-600 ml-1 font-medium">Ready to Donate</span>
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      </div>
+      )}
     </div>
   );
 };
