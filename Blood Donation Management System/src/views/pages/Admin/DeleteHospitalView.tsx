@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
-import { fetchHospitals } from '../../../controllers/hospitalController';
+import { useToast } from '../../../contexts/ToastContext';
+import { useAuth } from '../../../contexts/AuthContext';
+import { fetchHospitals, deleteHospital } from '../../../controllers/hospitalController';
 import type { Hospital } from '../../../models/Hospital';
 import { useLanguage } from '../../../contexts/LanguageContext';
 
 const DeleteHospitalView = () => {
   const { t } = useLanguage();
+  const { toast } = useToast();
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
   const [selectedHospital, setSelectedHospital] = useState<Hospital | null>(null);
 
@@ -41,11 +44,35 @@ const DeleteHospitalView = () => {
     return hospital.location || 'N/A';
   };
 
-  const handleDelete = (hospital: Hospital) => {
+  // Mode Logic: List vs Edit
+  const { user } = useAuth();
+
+  const handleDelete = async (hospital: Hospital) => {
     if (window.confirm(`${t('confirmDeleteHospital')} ${hospital.name}? ${t('actionCannotBeUndone')}`)) {
-      alert(`${t('hospitals')} ${hospital.name} ${t('deletedSuccessfully')}! Backend integration coming soon.`);
-      setHospitals((prev) => prev.filter((h) => h.id !== hospital.id));
-      setSelectedHospital(null);
+      try {
+        await deleteHospital(hospital.id);
+
+        // Log Activity
+        if (user && user.role === 'staff') {
+          const { ActivityTracker } = await import('../../../utils/ActivityTracker');
+          ActivityTracker.addLog({
+            staffId: user.id,
+            actionType: 'DELETE_HOSPITAL',
+            targetId: hospital.id,
+            targetName: hospital.name,
+            targetProfilePicture: hospital.profilePicture,
+            details: 'Deleted hospital record',
+            staff: { ...user, role: 'staff' } as any
+          });
+        }
+
+        toast.success(`${t('hospitals')} ${hospital.name} ${t('deletedSuccessfully')}!`);
+        setHospitals((prev) => prev.filter((h) => h.id !== hospital.id));
+        setSelectedHospital(null);
+      } catch (error: any) {
+        console.error("Delete failed", error);
+        toast.error(`Failed to delete hospital: ${error.message || 'Unknown error'}`);
+      }
     }
   };
 
@@ -102,6 +129,10 @@ const DeleteHospitalView = () => {
               <p className="font-medium">{selectedHospital.email || 'N/A'}</p>
             </div>
             <div>
+              <p className="text-sm text-gray-600">Phone (landline)</p>
+              <p className="font-medium">{selectedHospital.landline || 'N/A'}</p>
+            </div>
+            <div>
               <p className="text-sm text-gray-600">{t('phoneNumber')}</p>
               <p className="font-medium">{selectedHospital.phone || 'N/A'}</p>
             </div>
@@ -150,10 +181,11 @@ const DeleteHospitalView = () => {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('name')}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('emailAddress')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Landline</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('phoneNumber')}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('hospitalType')}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('address')}</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('action')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('actions')}</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -185,6 +217,7 @@ const DeleteHospitalView = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{hospital.email || 'N/A'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{hospital.landline || 'N/A'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{hospital.phone || 'N/A'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">
@@ -193,7 +226,7 @@ const DeleteHospitalView = () => {
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500 max-w-xs">
                       <div className="truncate" title={getFullAddress(hospital)}>
-                        {formatLocation(hospital)}
+                        {hospital.locationDetails?.region || hospital.location || 'N/A'}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">

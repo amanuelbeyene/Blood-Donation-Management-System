@@ -1,106 +1,60 @@
 import { useEffect, useState } from 'react';
 import { useLanguage } from '../../../contexts/LanguageContext';
+import { useToast } from '../../../contexts/ToastContext';
 
-// Mock Admin type (Duplicate for now, ideally shared)
-interface Admin {
-    id: string;
-    fullName: string;
-    email: string;
-    phone: string;
-    role: string;
-    profilePicture?: string;
-    locationDetails?: {
-        region: string;
-        city: string;
-        subCity: string;
-        woreda: string;
-        kebele: string;
-        street: string;
-        homeNumber: string;
-    };
-    location?: string;
-    status: 'active' | 'inactive';
-    joinedDate: string;
-}
+// Using Admin type from controller is better, but for now matching local state
+import { Admin, deleteAdmin } from '../../../controllers/adminController';
 
-// Mock Data
-const MOCK_ADMINS: Admin[] = [
-    {
-        id: 'ADM001',
-        fullName: 'Sarah Johnson',
-        email: 'sarah.j@example.com',
-        phone: '+251 911 000 001',
-        role: 'Admin',
-        status: 'active',
-        joinedDate: '2024-01-15',
-        locationDetails: {
-            region: 'Addis Ababa',
-            city: 'Addis Ababa',
-            subCity: 'Bole',
-            woreda: '03',
-            kebele: '05',
-            street: 'Bole Road',
-            homeNumber: '101'
-        }
-    },
-    {
-        id: 'ADM002',
-        fullName: 'Michael Chen',
-        email: 'michael.c@example.com',
-        phone: '+251 911 000 002',
-        role: 'Manager',
-        status: 'inactive',
-        joinedDate: '2024-02-20',
-        location: 'Hawassa, SNNPR'
-    }
-];
+
 
 const DeleteAdminView = () => {
     const { t } = useLanguage();
+    const { toast } = useToast();
     const [admins, setAdmins] = useState<Admin[]>([]);
     const [selectedAdmin, setSelectedAdmin] = useState<Admin | null>(null);
 
     useEffect(() => {
-        // Simulate fetch
-        setAdmins(MOCK_ADMINS);
+        const loadAdmins = async () => {
+            try {
+                // Dynamic import to avoid circular dependencies if any
+                const { fetchAdmins } = await import('../../../controllers/adminController');
+                const data = await fetchAdmins();
+                // Filter out super_admin
+                setAdmins(data.filter((admin: any) => admin.role !== 'super_admin'));
+            } catch (error) {
+                console.error("Failed to load admins", error);
+            }
+        };
+        loadAdmins();
     }, []);
 
     const formatLocation = (admin: Admin): string => {
-        if (admin.locationDetails) {
-            const parts = [
-                admin.locationDetails.region,
-                admin.locationDetails.city,
-                admin.locationDetails.subCity,
-                admin.locationDetails.woreda,
-                admin.locationDetails.kebele,
-                admin.locationDetails.street,
-                admin.locationDetails.homeNumber,
-            ].filter(Boolean);
-            return parts.join(', ') || admin.location || 'N/A';
-        }
-        return admin.location || 'N/A';
+        return admin.city || 'N/A';
     };
 
     const getFullAddress = (admin: Admin): string => {
-        if (admin.locationDetails) {
-            const parts: string[] = [];
-            if (admin.locationDetails.region) parts.push(`${t('region')}: ${admin.locationDetails.region}`);
-            if (admin.locationDetails.city) parts.push(`${t('city')}: ${admin.locationDetails.city}`);
-            if (admin.locationDetails.subCity) parts.push(`${t('subCity')}: ${admin.locationDetails.subCity}`);
-            if (admin.locationDetails.woreda) parts.push(`${t('woreda')}: ${admin.locationDetails.woreda}`);
-            if (admin.locationDetails.kebele) parts.push(`${t('kebele')}: ${admin.locationDetails.kebele}`);
-            if (admin.locationDetails.street) parts.push(`${t('street')}: ${admin.locationDetails.street}`);
-            if (admin.locationDetails.homeNumber) parts.push(`${t('homeNumber')}: ${admin.locationDetails.homeNumber}`);
-            return parts.join(' | ') || admin.location || 'N/A';
-        }
-        return admin.location || 'N/A';
+        const parts: string[] = [];
+        if (admin.region) parts.push(`${t('region')}: ${admin.region}`);
+        if (admin.city) parts.push(`${t('city')}: ${admin.city}`);
+        if (admin.subCity) parts.push(`${t('subCity')}: ${admin.subCity}`);
+        if (admin.woreda) parts.push(`${t('woreda')}: ${admin.woreda}`);
+        if (admin.kebele) parts.push(`${t('kebele')}: ${admin.kebele}`);
+        if (admin.street) parts.push(`${t('street')}: ${admin.street}`);
+        if (admin.homeNumber) parts.push(`${t('homeNumber')}: ${admin.homeNumber}`);
+        return parts.join(' | ') || admin.location || 'N/A';
     };
 
-    const handleDelete = (admin: Admin) => {
+    const handleDelete = async (admin: Admin) => {
         if (window.confirm(`${t('confirmDeleteDonor')} ${admin.fullName}? ${t('actionCannotBeUndone')}`)) {
-            alert(`Admin ${admin.fullName} deleted successfully! Backend integration coming soon.`);
-            setAdmins((prev) => prev.filter((d) => d.id !== admin.id));
-            setSelectedAdmin(null);
+            try {
+                await deleteAdmin(admin.id);
+                toast.success(`Admin ${admin.fullName} deleted successfully!`);
+                setAdmins((prev) => prev.filter((d) => d.id !== admin.id));
+                setSelectedAdmin(null);
+            } catch (error) {
+                console.error("Delete failed", error);
+                toast.error("Failed to delete admin");
+            }
         }
     };
 
@@ -160,6 +114,14 @@ const DeleteAdminView = () => {
                             <p className="text-sm text-gray-600">{t('phoneNumber')}</p>
                             <p className="font-medium">{selectedAdmin.phone || 'N/A'}</p>
                         </div>
+                        <div>
+                            <p className="text-sm text-gray-600">Landline</p>
+                            <p className="font-medium">{selectedAdmin.landline || 'N/A'}</p>
+                        </div>
+                        <div>
+                            <p className="text-sm text-gray-600">Gender</p>
+                            <p className="font-medium capitalize">{selectedAdmin.gender || 'N/A'}</p>
+                        </div>
                         <div className="md:col-span-2">
                             <p className="text-sm text-gray-600">{t('address')}</p>
                             <p className="font-medium">{getFullAddress(selectedAdmin)}</p>
@@ -194,9 +156,11 @@ const DeleteAdminView = () => {
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('name')}</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('emailAddress')}</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('phoneNumber')}</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Landline</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gender</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('address')}</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('action')}</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('actions')}</th>
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
@@ -229,6 +193,8 @@ const DeleteAdminView = () => {
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{admin.email || 'N/A'}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{admin.phone || 'N/A'}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{admin.landline || 'N/A'}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">{admin.gender || 'N/A'}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                             <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-semibold">
                                                 {admin.role}

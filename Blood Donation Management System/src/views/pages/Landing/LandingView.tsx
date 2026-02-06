@@ -15,6 +15,9 @@ const LandingView = () => {
       <div className="w-full max-w-6xl space-y-8">
         {/* Heading Section */}
         <div className="text-center space-y-4">
+          <div className="mx-auto h-24 w-24 rounded-full bg-white flex items-center justify-center overflow-hidden shadow-lg mb-6">
+            <img src="/logo.png" alt="BDMS Logo" className="h-full w-full object-cover" />
+          </div>
           <h1 className="text-4xl font-bold text-slate-900 sm:text-5xl">
             Blood Donation Management System
           </h1>

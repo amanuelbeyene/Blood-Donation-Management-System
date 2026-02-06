@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
+import bcrypt from 'bcryptjs';
 import prisma from '../config/prisma';
+import { generateCustomId } from '../utils/idGenerator';
 
 // Helper to map DB Hospital to Frontend (handling locationDetails)
 const mapHospitalToFrontend = (hospital: any) => {
@@ -7,6 +9,7 @@ const mapHospitalToFrontend = (hospital: any) => {
         ...hospital,
         businessLicenseName: hospital.licenseName,
         businessLicenseNumber: hospital.licenseNumber,
+        businessLicenseImage: hospital.businessLicenseImage,
         locationDetails: {
             region: hospital.region,
             city: hospital.city,
@@ -42,6 +45,7 @@ export const getHospitalById = async (req: Request, res: Response): Promise<void
     }
 };
 
+// registerHospital
 export const registerHospital = async (req: Request, res: Response): Promise<void> => {
     try {
         const data = req.body;
@@ -49,7 +53,9 @@ export const registerHospital = async (req: Request, res: Response): Promise<voi
         const hospitalData = {
             name: data.name,
             email: data.email,
+            landline: data.landline,
             phone: data.phone,
+            fanNumber: data.fanNumber, // Fix: Include FAN Number
             username: data.username,
             password: data.password,
             contactDoctorName: data.contactDoctorName,
@@ -69,13 +75,24 @@ export const registerHospital = async (req: Request, res: Response): Promise<voi
 
             licenseName: data.businessLicenseName,
             licenseNumber: data.businessLicenseNumber,
+            businessLicenseImage: data.businessLicenseImage,
             hospitalType: data.hospitalType,
             profilePicture: data.profilePicture,
-            status: 'Pending',
+            status: 'Active', // Admin created hospitals are active by default
         };
 
+        // Hash Password
+        const salt = await bcrypt.genSalt(10);
+        hospitalData.password = await bcrypt.hash(data.password, salt);
+
+        // Generate Custom ID
+        const customId = await generateCustomId('hospital', 'H');
+
         const newHospital = await prisma.hospital.create({
-            data: hospitalData
+            data: {
+                ...hospitalData,
+                id: customId
+            }
         });
         res.status(201).json(mapHospitalToFrontend(newHospital));
     } catch (error: any) {
@@ -96,7 +113,7 @@ export const updateHospital = async (req: Request, res: Response): Promise<void>
     delete data.id;
 
     // Handle nested locationDetails updates if provided
-    let flatLocation = {};
+    let flatLocation: any = {};
     if (data.locationDetails) {
         flatLocation = {
             region: data.locationDetails.region,
@@ -110,19 +127,96 @@ export const updateHospital = async (req: Request, res: Response): Promise<void>
         delete data.locationDetails;
     }
 
+    if (data.password) {
+        const salt = await bcrypt.genSalt(10);
+        data.password = await bcrypt.hash(data.password, salt);
+    }
+
     try {
+        const updateData: any = {
+            name: data.name,
+            email: data.email,
+            landline: data.landline,
+            phone: data.phone,
+            fanNumber: data.fanNumber, // Fix: Include FAN Number
+            idCardFront: data.idCardFront,
+            idCardBack: data.idCardBack,
+            contactDoctorName: data.contactDoctorName,
+            contactDoctorPhone: data.contactDoctorPhone,
+
+            // Address
+            region: flatLocation.region || data.region,
+            city: flatLocation.city || data.city,
+            subCity: flatLocation.subCity || data.subCity,
+            woreda: flatLocation.woreda || data.woreda,
+            kebele: flatLocation.kebele || data.kebele,
+            street: flatLocation.street || data.street,
+            location: data.location,
+
+            latitude: data.latitude ? parseFloat(data.latitude) : undefined,
+            longitude: data.longitude ? parseFloat(data.longitude) : undefined,
+
+            // License
+            licenseName: data.businessLicenseName || data.licenseName,
+            licenseNumber: data.businessLicenseNumber || data.licenseNumber,
+            businessLicenseImage: data.businessLicenseImage,
+            hospitalType: data.hospitalType,
+
+            // Auth & Status
+            username: data.username,
+            profilePicture: data.profilePicture,
+            status: data.status,
+            rejectionReason: data.rejectionReason,
+        };
+
+        if (data.password) {
+            updateData.password = data.password;
+        }
+
         const updatedHospital = await prisma.hospital.update({
             where: { id },
-            data: {
-                ...data,
-                ...flatLocation,
-                latitude: data.latitude ? parseFloat(data.latitude) : undefined,
-                longitude: data.longitude ? parseFloat(data.longitude) : undefined,
-                // Remap license keys if they are coming in as businessLicense*
-                licenseName: data.businessLicenseName || undefined,
-                licenseNumber: data.businessLicenseNumber || undefined,
-            }
+            data: updateData
         });
+
+        // Admin Activity Logging for Approval/Rejection
+        if (req.headers.authorization) { // Only log if triggered by authenticated user
+            const token = req.headers.authorization.split(' ')[1];
+            // Only log on status change
+            if (token && (data.status === 'Active' || data.status === 'Rejected')) {
+                try {
+                    const adminId = token.replace('mock-jwt-token-', '');
+                    let admin = null;
+
+                    // Resolve Admin
+                    if (adminId === 'temp-admin' || adminId === 'admin') {
+                        admin = await prisma.admin.findUnique({ where: { id: 'SA0000001' } });
+                    } else {
+                        admin = await prisma.admin.findUnique({ where: { id: adminId } });
+                    }
+
+                    if (admin) {
+                        const actionType = data.status === 'Active' ? 'APPROVE_HOSPITAL' : 'REJECT_HOSPITAL';
+                        const details = data.status === 'Rejected'
+                            ? `Case: ${data.rejectionReason || 'Invalid License Number provided'}` // Default reason if missing for demo
+                            : 'Approved Successfully';
+
+                        await prisma.adminActivityLog.create({
+                            data: {
+                                adminId: admin.id,
+                                actionType: actionType,
+                                targetId: id,
+                                targetName: updatedHospital.name,
+                                details: details
+                            }
+                        });
+                        console.log(`[ACTIVITY LOG] Logged ${actionType} for hospital ${id} by admin ${admin.id}`);
+                    }
+                } catch (logError) {
+                    console.error('Failed to log admin approval activity:', logError);
+                }
+            }
+        }
+
         res.json(mapHospitalToFrontend(updatedHospital));
     } catch (error: any) {
         console.error("Update Hospital Error", error);

@@ -1,15 +1,16 @@
 import { FormEvent, useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { validatePassword } from '../../../utils/validation';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { fetchDonorById } from '../../../controllers/donorController';
-
-
+import { useToast } from '../../../contexts/ToastContext';
 
 const EditProfileView = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
     const { t } = useLanguage();
+    const { toast } = useToast();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [profilePicture, setProfilePicture] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -23,6 +24,7 @@ const EditProfileView = () => {
         bloodType: '',
         birthDate: '',
         age: '',
+        weight: '',
         gender: '',
         maritalStatus: '',
         fanNumber: '',
@@ -58,6 +60,7 @@ const EditProfileView = () => {
                         bloodType: donor.bloodType || '',
                         birthDate: donor.birthDate || '',
                         age: donor.age?.toString() || calculateAge(donor.birthDate || ''),
+                        weight: donor.weight?.toString() || '',
                         gender: donor.gender || '',
                         maritalStatus: donor.maritalStatus || '',
                         fanNumber: donor.fanNumber || '',
@@ -104,30 +107,36 @@ const EditProfileView = () => {
         return age.toString();
     };
 
-    const handleGetLocation = () => {
-        if (!navigator.geolocation) {
-            alert('Geolocation is not supported by your browser');
-            return;
-        }
-
+    const handleGetLocation = async () => {
         setIsLocating(true);
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const { latitude, longitude } = position.coords;
-                setFormState((prev: any) => ({
-                    ...prev,
-                    location: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
-                    latitude,
-                    longitude,
-                }));
-                setIsLocating(false);
-            },
-            (error) => {
-                console.error('Error getting location:', error);
-                alert('Unable to retrieve your location');
-                setIsLocating(false);
-            }
-        );
+        try {
+            const { getCurrentLocation, getAddressFromCoordinates } = await import('../../../utils/geoUtils');
+            const position = await getCurrentLocation();
+            const { latitude, longitude } = position.coords;
+
+            // Get address details
+            const address = await getAddressFromCoordinates(latitude, longitude);
+
+            setFormState((prev: any) => ({
+                ...prev,
+                location: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+                latitude,
+                longitude,
+                // Auto-fill address fields
+                region: address.region || prev.region || '',
+                city: address.city || prev.city || '',
+                subCity: address.subCity || prev.subCity || '',
+                woreda: address.woreda || prev.woreda || '',
+                kebele: address.kebele || prev.kebele || '',
+                street: address.street || prev.street || '',
+                homeNumber: address.homeNumber || prev.homeNumber || ''
+            }));
+        } catch (error: any) {
+            console.error('Error getting location:', error);
+            toast.error(error.message || 'Unable to retrieve location');
+        } finally {
+            setIsLocating(false);
+        }
     };
 
     const handleProfilePictureChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -144,12 +153,41 @@ const EditProfileView = () => {
     const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         if (formState.password !== formState.confirmPassword) {
-            alert('Passwords do not match!');
+            toast.error('Passwords do not match!');
+            return;
+        }
+
+        // Only validate if password is provided (changing password)
+        if (formState.password) {
+            const passwordValidation = validatePassword(formState.password);
+            if (!passwordValidation.isValid) {
+                toast.error(passwordValidation.message);
+                return;
+            }
+        }
+
+        if (formState.fanNumber.length !== 16) {
+            toast.error('FAN Number must be exactly 16 digits.');
+            return;
+        }
+
+        if (!formState.location || !formState.latitude || !formState.longitude) {
+            toast.error('Location (GPS) is required. Please use the "Get Location" button.');
+            return;
+        }
+
+        if (!formState.medicalCondition) {
+            toast.error('Medical Condition is required.');
+            return;
+        }
+
+        if (!formState.hasDisability) {
+            toast.error('Please specify if you have any disabilities.');
             return;
         }
         // Here you would call updateDonor(user.id, formState)
         // Ensure proper object structure for update logic if needed
-        alert('Profile updated successfully!');
+        toast.success('Profile updated successfully!');
         navigate('/donor-dashboard');
     };
 
@@ -205,11 +243,18 @@ const EditProfileView = () => {
                         <label className="block text-sm font-medium text-slate-700 mb-2">{t('fullName' as any) || 'Full Name'} <span className="text-red-500">*</span></label>
                         <input
                             required
+                            maxLength={35}
                             type="text"
                             value={formState.fullName}
                             onChange={(e) => setFormState(prev => ({ ...prev, fullName: e.target.value }))}
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition"
+                            className={`w-full rounded-xl border px-4 py-3 focus:outline-none transition ${formState.fullName.length === 35
+                                ? 'border-red-500 focus:border-red-500 bg-red-50'
+                                : 'border-slate-200 focus:border-primary focus:ring-primary/10'
+                                }`}
                         />
+                        {formState.fullName.length === 35 && (
+                            <p className="text-red-500 text-xs mt-1">Max length reached (35 characters).</p>
+                        )}
                     </div>
 
                     {/* Email */}
@@ -220,8 +265,14 @@ const EditProfileView = () => {
                             type="email"
                             value={formState.email}
                             onChange={(e) => setFormState(prev => ({ ...prev, email: e.target.value }))}
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition"
+                            className={`w-full rounded-xl border px-4 py-3 focus:outline-none focus:ring-4 transition ${formState.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formState.email)
+                                ? 'border-red-500 focus:border-red-500 focus:ring-red-500/10 bg-red-50'
+                                : 'border-slate-200 focus:border-primary focus:ring-primary/10'
+                                }`}
                         />
+                        {formState.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formState.email) && (
+                            <p className="text-red-500 text-xs mt-1">Example: amanuelbeyenee@gmail.com</p>
+                        )}
                     </div>
 
                     {/* Phone */}
@@ -231,9 +282,16 @@ const EditProfileView = () => {
                             required
                             type="tel"
                             value={formState.phone}
-                            onChange={(e) => setFormState(prev => ({ ...prev, phone: e.target.value }))}
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition"
+                            onChange={(e) => setFormState(prev => ({ ...prev, phone: e.target.value.replace(/[^\d+]/g, '') }))}
+                            className={`w-full rounded-xl border px-4 py-3 focus:outline-none focus:ring-4 transition ${formState.phone && (formState.phone.length !== 10 && formState.phone.length !== 13)
+                                ? 'border-red-500 focus:border-red-500 focus:ring-red-500/10 bg-red-50'
+                                : 'border-slate-200 focus:border-primary focus:ring-primary/10'
+                                }`}
+                            placeholder="+251 911 / 0911"
                         />
+                        {formState.phone && (formState.phone.length !== 10 && formState.phone.length !== 13) && (
+                            <p className="text-red-500 text-xs mt-1">Must be 10 or 13 digits.</p>
+                        )}
                     </div>
 
                     {/* Blood Type */}
@@ -283,6 +341,19 @@ const EditProfileView = () => {
                         />
                     </div>
 
+                    {/* Weight */}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">Weight (Kg) <span className="text-red-500">*</span></label>
+                        <input
+                            required
+                            type="number"
+                            min={45}
+                            value={formState.weight}
+                            onChange={(e) => setFormState(prev => ({ ...prev, weight: e.target.value }))}
+                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition"
+                        />
+                    </div>
+
                     {/* Gender */}
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-2">{t('gender' as any) || 'Gender'} <span className="text-red-500">*</span></label>
@@ -328,8 +399,15 @@ const EditProfileView = () => {
                                 const val = e.target.value.replace(/\D/g, '');
                                 setFormState(prev => ({ ...prev, fanNumber: val }));
                             }}
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition"
+                            className={`w-full rounded-xl border px-4 py-3 focus:outline-none focus:ring-4 transition ${formState.fanNumber && formState.fanNumber.length !== 16
+                                ? 'border-red-500 focus:border-red-500 focus:ring-red-500/10 bg-red-50'
+                                : 'border-slate-200 focus:border-primary focus:ring-primary/10'
+                                }`}
+                            placeholder="Enter 16-digit FAN Number"
                         />
+                        {formState.fanNumber && formState.fanNumber.length !== 16 && (
+                            <p className="text-red-500 text-xs mt-1">FAN Number must be exactly 16 digits.</p>
+                        )}
                     </div>
 
                     {/* Address Section */}
@@ -338,9 +416,10 @@ const EditProfileView = () => {
                     </div>
 
                     <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Location (GPS)</label>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">Location (GPS) <span className="text-red-500">*</span></label>
                         <div className="flex gap-2">
                             <input
+                                required
                                 type="text"
                                 value={formState.location}
                                 onChange={(e) => setFormState(prev => ({ ...prev, location: e.target.value }))}
@@ -440,8 +519,9 @@ const EditProfileView = () => {
                     </div>
 
                     <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-slate-700 mb-2">{t('medicalCondition' as any) || 'Medical Condition'}</label>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">{t('medicalCondition' as any) || 'Medical Condition'} <span className="text-red-500">*</span></label>
                         <select
+                            required
                             value={formState.medicalCondition}
                             onChange={(e) => setFormState(prev => ({ ...prev, medicalCondition: e.target.value }))}
                             className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition"
@@ -459,8 +539,9 @@ const EditProfileView = () => {
                     </div>
 
                     <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Has Disabilities?</label>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">Has Disabilities? <span className="text-red-500">*</span></label>
                         <select
+                            required
                             value={formState.hasDisability}
                             onChange={(e) => {
                                 const val = e.target.value;
@@ -506,10 +587,19 @@ const EditProfileView = () => {
                         <input
                             required
                             type="text"
+                            maxLength={20}
                             value={formState.username}
                             onChange={(e) => setFormState(prev => ({ ...prev, username: e.target.value }))}
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition"
+                            className={`w-full rounded-xl border px-4 py-3 focus:outline-none transition ${formState.username && !/^[a-zA-Z0-9]+$/.test(formState.username)
+                                ? 'border-red-500 focus:border-red-500 bg-red-50'
+                                : 'border-slate-200 focus:border-primary focus:ring-primary/10'
+                                }`}
+                            placeholder={t('enterUsername' as any) || 'Enter Username'}
                         />
+                        {formState.username && !/^[a-zA-Z0-9]+$/.test(formState.username) && (
+                            <p className="text-red-500 text-xs mt-1">Username must be alphanumeric (text and numbers only).</p>
+                        )}
+                        <p className="text-slate-500 text-xs mt-1">Example: amanuel / amanuel369</p>
                     </div>
 
                     <div>

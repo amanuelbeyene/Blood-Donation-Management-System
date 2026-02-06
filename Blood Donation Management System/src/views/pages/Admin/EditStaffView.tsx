@@ -1,41 +1,82 @@
-import { FormEvent, useState, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { FormEvent, useState, useRef, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useLanguage } from '../../../contexts/LanguageContext';
+import { useToast } from '../../../contexts/ToastContext';
+import { fetchStaffById, updateStaff, fetchStaff, Staff } from '../../../controllers/staffController';
 
 const EditStaffView = () => {
     const { id } = useParams();
+    const navigate = useNavigate();
     const { t } = useLanguage();
+    const { toast } = useToast();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [profilePicture, setProfilePicture] = useState<string | null>(null);
     const [isLocating, setIsLocating] = useState(false);
-    const [formState, setFormState] = useState({
-        fullName: 'Abebe Kebede',
-        email: 'abebe.k@example.com',
-        phone: '+251 911 000 001',
-        bloodType: 'A+',
-        birthDate: '1990-01-01',
-        age: '34',
-        maritalStatus: 'Single',
-        fanNumber: '1234567890123456',
-        username: 'abebe.k',
-        // Address
-        region: 'Addis Ababa',
-        city: 'Addis Ababa',
-        subCity: 'Arada',
-        woreda: '01',
-        kebele: '04',
-        street: 'King George VI St',
-        homeNumber: '202',
+    const [isLoading, setIsLoading] = useState(true);
+    const [staffList, setStaffList] = useState<Staff[]>([]);
+    const [formState, setFormState] = useState<any>({
+        fullName: '',
+        email: '',
+        landline: '',
+        phone: '',
+        bloodType: '',
+        birthDate: '',
+        age: '',
+        gender: '',
+        maritalStatus: '',
+        fanNumber: '',
+        username: '',
+        region: '',
+        city: '',
+        subCity: '',
+        woreda: '',
+        kebele: '',
+        street: '',
+        homeNumber: '',
         location: '',
-        latitude: null as number | null,
-        longitude: null as number | null,
-        // Medical
-        medicalCondition: 'Normal',
-        hasDisability: 'No',
+        latitude: null,
+        longitude: null,
+        medicalCondition: '',
+        hasDisability: '',
         disabilityType: '',
         role: 'Staff',
         status: 'active',
+        idCardFront: null as string | null,
+        idCardBack: null as string | null,
     });
+
+    useEffect(() => {
+        const loadStaff = async () => {
+            if (!id) return;
+            try {
+                const staff = await fetchStaffById(id);
+                if (staff) {
+                    // Explicitly remove password to prevent sending it back
+                    const { password, ...cleanStaff } = staff as any;
+                    setFormState({
+                        ...cleanStaff,
+                        age: staff.age?.toString() || '',
+                        birthDate: staff.birthDate ? new Date(staff.birthDate).toISOString().split('T')[0] : '',
+                    });
+                    if (staff.profilePicture) {
+                        setProfilePicture(staff.profilePicture);
+                    }
+                    if (staff.idCardFront) {
+                        setFormState((prev: any) => ({ ...prev, idCardFront: staff.idCardFront }));
+                    }
+                    if (staff.idCardBack) {
+                        setFormState((prev: any) => ({ ...prev, idCardBack: staff.idCardBack }));
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to fetch staff', error);
+                toast.error('Failed to load staff details');
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        loadStaff();
+    }, [id]);
 
     const calculateAge = (dateString: string) => {
         if (!dateString) return '';
@@ -50,30 +91,36 @@ const EditStaffView = () => {
         return age.toString();
     };
 
-    const handleGetLocation = () => {
-        if (!navigator.geolocation) {
-            alert('Geolocation is not supported by your browser');
-            return;
-        }
-
+    const handleGetLocation = async () => {
         setIsLocating(true);
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const { latitude, longitude } = position.coords;
-                setFormState((prev: any) => ({
-                    ...prev,
-                    location: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
-                    latitude,
-                    longitude,
-                }));
-                setIsLocating(false);
-            },
-            (error) => {
-                console.error('Error getting location:', error);
-                alert('Unable to retrieve your location');
-                setIsLocating(false);
-            }
-        );
+        try {
+            const { getCurrentLocation, getAddressFromCoordinates } = await import('../../../utils/geoUtils');
+            const position = await getCurrentLocation();
+            const { latitude, longitude } = position.coords;
+
+            // Get address details
+            const address = await getAddressFromCoordinates(latitude, longitude);
+
+            setFormState((prev: any) => ({
+                ...prev,
+                location: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+                latitude,
+                longitude,
+                // Auto-fill address fields
+                region: address.region || prev.region,
+                city: address.city || prev.city,
+                subCity: address.subCity || prev.subCity,
+                woreda: address.woreda || prev.woreda,
+                kebele: address.kebele || prev.kebele,
+                street: address.street || prev.street,
+                homeNumber: address.homeNumber || prev.homeNumber
+            }));
+        } catch (error: any) {
+            console.error('Error getting location:', error);
+            toast.error(error.message || 'Unable to retrieve location');
+        } finally {
+            setIsLocating(false);
+        }
     };
 
     const handleProfilePictureChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -87,10 +134,163 @@ const EditStaffView = () => {
         }
     };
 
-    const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        alert('Staff details updated successfully! Backend integration coming soon.');
+        try {
+            if (!id) return;
+
+            if (formState.fanNumber.length !== 16) {
+                toast.error('FAN Number must be exactly 16 digits.');
+                return;
+            }
+
+            if (!formState.idCardFront) {
+                toast.error('Front ID Card image is required.');
+                return;
+            }
+
+            if (!formState.location || !formState.latitude || !formState.longitude) {
+                toast.error('Location (GPS) is required. Please use the "Get Location" button.');
+                return;
+            }
+
+            if (!formState.medicalCondition) {
+                toast.error('Medical Condition is required.');
+                return;
+            }
+
+            if (formState.phone.length !== 10) {
+                toast.error('Phone number must be exactly 10 digits.');
+                return;
+            }
+
+            if (!formState.hasDisability) {
+                toast.error('Please specify if you have any disabilities.');
+                return;
+            }
+
+            await updateStaff(id, {
+                ...formState,
+                age: formState.age ? parseInt(formState.age) : undefined,
+                latitude: formState.latitude || undefined,
+                longitude: formState.longitude || undefined,
+                profilePicture: profilePicture || undefined,
+                idCardFront: formState.idCardFront || undefined,
+                idCardBack: formState.idCardBack || undefined,
+            });
+            toast.success('Staff details updated successfully!');
+            navigate('/admin');
+        } catch (error: any) {
+            console.error('Update failed', error);
+            toast.error('Failed to update staff');
+        }
     };
+
+
+    useEffect(() => {
+        if (!id) {
+            const loadData = async () => {
+                try {
+                    const data = await fetchStaff();
+                    setStaffList(data);
+                } catch (error) {
+                    console.error("Failed to load staff list", error);
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+            loadData();
+        }
+    }, [id]);
+
+    const formatLocation = (staff: Staff): string => {
+        if (!staff) return 'N/A';
+        return staff.city || staff.location || 'N/A';
+    };
+
+    if (!id) {
+        if (isLoading) {
+            return (
+                <div className="flex h-64 items-center justify-center">
+                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-purple-600 border-t-transparent"></div>
+                </div>
+            );
+        }
+
+        return (
+            <div className="space-y-6">
+                <h2 className="text-2xl font-bold text-gray-900">{t('editStaffDetails')}</h2>
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                    <div className="px-6 py-4 border-b border-gray-200">
+                        <h3 className="text-lg font-semibold text-gray-900">{t('staffMembers' as any) || 'Staff Members'}</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead className="bg-gray-50">
+                                <tr>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('name')}</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('emailAddress')}</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('phoneNumber')}</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('role' as any) || 'Role'}</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('address')}</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('actions')}</th>
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                                {staffList.map((staff) => (
+                                    <tr key={staff.id}>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                            <div className="flex items-center gap-3">
+                                                {staff.profilePicture ? (
+                                                    <img src={staff.profilePicture} alt={staff.fullName} className="h-10 w-10 rounded-full object-cover" />
+                                                ) : (
+                                                    <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                                                        <span className="text-gray-500 text-sm">
+                                                            {staff.fullName ? staff.fullName.charAt(0) : 'S'}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                                <span>{staff.fullName}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{staff.email}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{staff.phone}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-semibold">
+                                                {staff.role || 'Staff'}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-sm text-gray-500 max-w-xs">
+                                            <div className="truncate" title={formatLocation(staff)}>
+                                                {formatLocation(staff)}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${staff.status === 'active' || staff.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                                {staff.status || 'Active'}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                            <button
+                                                onClick={() => navigate(`/admin/edit-staff/${staff.id}`)}
+                                                className="text-purple-600 hover:text-purple-800 font-bold"
+                                            >
+                                                {t('edit')}
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+
+    if (isLoading) return <div>Loading...</div>;
 
     return (
         <div className="space-y-6">
@@ -139,11 +339,18 @@ const EditStaffView = () => {
                             <label className="block text-sm font-medium text-gray-700 mb-2">{t('fullName')} <span className="text-red-500">*</span></label>
                             <input
                                 required
+                                maxLength={35}
                                 type="text"
                                 value={formState.fullName}
-                                onChange={(e) => setFormState((prev) => ({ ...prev, fullName: e.target.value }))}
-                                className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"
+                                onChange={(e) => setFormState((prev: Staff) => ({ ...prev, fullName: e.target.value }))}
+                                className={`w-full rounded-lg border px-4 py-2 focus:outline-none transition ${formState.fullName.length === 35
+                                    ? 'border-red-500 focus:border-red-500 bg-red-50'
+                                    : 'border-gray-300 focus:border-purple-500 focus:ring-purple-200'
+                                    }`}
                             />
+                            {formState.fullName.length === 35 && (
+                                <p className="text-red-500 text-xs mt-1">Max length reached (35 characters).</p>
+                            )}
                         </div>
 
                         <div>
@@ -151,7 +358,7 @@ const EditStaffView = () => {
                             <select
                                 required
                                 value={formState.role}
-                                onChange={(e) => setFormState((prev) => ({ ...prev, role: e.target.value }))}
+                                onChange={(e) => setFormState((prev: Staff) => ({ ...prev, role: e.target.value }))}
                                 className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"
                             >
                                 <option value="Staff">Staff</option>
@@ -164,9 +371,37 @@ const EditStaffView = () => {
                                 required
                                 type="email"
                                 value={formState.email}
-                                onChange={(e) => setFormState((prev) => ({ ...prev, email: e.target.value }))}
-                                className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"
+                                onChange={(e) => setFormState((prev: any) => ({ ...prev, email: e.target.value }))}
+                                className={`w-full rounded-lg border px-4 py-2 focus:outline-none focus:ring-2 transition ${formState.email && !/^[^\\s@]+@[^\\s@]+\.[^\\s@]+$/.test(formState.email)
+                                    ? 'border-red-500 focus:border-red-500 focus:ring-red-200 bg-red-50'
+                                    : 'border-gray-300 focus:border-purple-500 focus:ring-purple-200'
+                                    }`}
                             />
+                            {formState.email && !/^[^\\s@]+@[^\\s@]+\.[^\\s@]+$/.test(formState.email) && (
+                                <p className="text-red-500 text-xs mt-1">Example: amanuelbeyenee@gmail.com</p>
+                            )}
+                        </div>
+
+                        {/* Phone (Landline) */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">{t('phoneLandline' as any) || 'Phone (Landline)'}</label>
+                            <input
+                                type="tel"
+                                maxLength={10}
+                                value={formState.landline || ''}
+                                onChange={(e) => {
+                                    const val = e.target.value.replace(/\D/g, '');
+                                    setFormState((prev: any) => ({ ...prev, landline: val }));
+                                }}
+                                className={`w-full rounded-lg border px-4 py-2 focus:outline-none focus:ring-2 transition ${formState.landline && formState.landline.length < 10
+                                    ? 'border-red-500 focus:border-red-500 focus:ring-red-200 bg-red-50'
+                                    : 'border-gray-300 focus:border-purple-500 focus:ring-purple-200'
+                                    }`}
+                                placeholder="011..."
+                            />
+                            {formState.landline && formState.landline.length < 10 && (
+                                <p className="text-red-500 text-xs mt-1">Must be 10 digits. Example 011 4141764</p>
+                            )}
                         </div>
 
                         <div>
@@ -174,10 +409,21 @@ const EditStaffView = () => {
                             <input
                                 required
                                 type="tel"
+                                maxLength={10}
                                 value={formState.phone}
-                                onChange={(e) => setFormState((prev) => ({ ...prev, phone: e.target.value }))}
-                                className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"
+                                onChange={(e) => {
+                                    const val = e.target.value.replace(/\D/g, '');
+                                    setFormState((prev: any) => ({ ...prev, phone: val }));
+                                }}
+                                className={`w-full rounded-lg border px-4 py-2 focus:outline-none focus:ring-2 transition ${formState.phone && formState.phone.length !== 10
+                                    ? 'border-red-500 focus:border-red-500 focus:ring-red-200 bg-red-50'
+                                    : 'border-gray-300 focus:border-purple-500 focus:ring-purple-200'
+                                    }`}
+                                placeholder="+251 911 / 0911"
                             />
+                            {formState.phone && formState.phone.length !== 10 && (
+                                <p className="text-red-500 text-xs mt-1">Must be exactly 10 digits.</p>
+                            )}
                         </div>
 
                         <div>
@@ -185,17 +431,26 @@ const EditStaffView = () => {
                             <input
                                 required
                                 type="text"
+                                maxLength={20}
                                 value={formState.username}
-                                onChange={(e) => setFormState((prev) => ({ ...prev, username: e.target.value }))}
-                                className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"
+                                onChange={(e) => setFormState((prev: any) => ({ ...prev, username: e.target.value }))}
+                                className={`w-full rounded-lg border px-4 py-2 focus:outline-none transition ${formState.username && !/^[a-zA-Z0-9]+$/.test(formState.username)
+                                    ? 'border-red-500 focus:border-red-500 bg-red-50'
+                                    : 'border-gray-300 focus:border-purple-500 focus:ring-purple-200'
+                                    }`}
+                                placeholder={t('enterUsername' as any) || 'Enter Username'}
                             />
+                            {formState.username && !/^[a-zA-Z0-9]+$/.test(formState.username) && (
+                                <p className="text-red-500 text-xs mt-1">Username must be alphanumeric (text and numbers only).</p>
+                            )}
+                            <p className="text-slate-500 text-xs mt-1">Example: amanuel / amanuel369</p>
                         </div>
 
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
                             <select
                                 value={formState.status}
-                                onChange={(e) => setFormState((prev) => ({ ...prev, status: e.target.value }))}
+                                onChange={(e) => setFormState((prev: any) => ({ ...prev, status: e.target.value }))}
                                 className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"
                             >
                                 <option value="active">Active</option>
@@ -209,7 +464,7 @@ const EditStaffView = () => {
                             <select
                                 required
                                 value={formState.bloodType}
-                                onChange={(e) => setFormState((prev) => ({ ...prev, bloodType: e.target.value }))}
+                                onChange={(e) => setFormState((prev: any) => ({ ...prev, bloodType: e.target.value }))}
                                 className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"
                             >
                                 <option value="">Select Blood Type</option>
@@ -227,7 +482,7 @@ const EditStaffView = () => {
                                 value={formState.birthDate}
                                 onChange={(e) => {
                                     const val = e.target.value;
-                                    setFormState((prev) => ({
+                                    setFormState((prev: any) => ({
                                         ...prev,
                                         birthDate: val,
                                         age: calculateAge(val)
@@ -243,9 +498,23 @@ const EditStaffView = () => {
                                 required
                                 type="number"
                                 value={formState.age}
-                                onChange={(e) => setFormState((prev) => ({ ...prev, age: e.target.value }))}
+                                onChange={(e) => setFormState((prev: any) => ({ ...prev, age: e.target.value }))}
                                 className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"
                             />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">{t('gender' as any) || 'Gender'} <span className="text-red-500">*</span></label>
+                            <select
+                                required
+                                value={formState.gender}
+                                onChange={(e) => setFormState((prev: any) => ({ ...prev, gender: e.target.value }))}
+                                className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"
+                            >
+                                <option value="">Select Gender</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                            </select>
                         </div>
 
                         <div>
@@ -253,7 +522,7 @@ const EditStaffView = () => {
                             <select
                                 required
                                 value={formState.maritalStatus}
-                                onChange={(e) => setFormState((prev) => ({ ...prev, maritalStatus: e.target.value }))}
+                                onChange={(e) => setFormState((prev: any) => ({ ...prev, maritalStatus: e.target.value }))}
                                 className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"
                             >
                                 <option value="">Select Status</option>
@@ -274,18 +543,23 @@ const EditStaffView = () => {
                                 value={formState.fanNumber}
                                 onChange={(e) => {
                                     const val = e.target.value.replace(/\D/g, '');
-                                    setFormState((prev) => ({ ...prev, fanNumber: val }));
+                                    setFormState((prev: any) => ({ ...prev, fanNumber: val }));
                                 }}
                                 className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"
+                                placeholder="Enter 16-digit FAN Number"
                             />
+                            {formState.fanNumber && formState.fanNumber.length !== 16 && (
+                                <p className="text-red-500 text-xs mt-1">FAN Number must be exactly 16 digits.</p>
+                            )}
                         </div>
 
                         {/* Medical Section moved here for flow or keep detailed? */}
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">{t('medicalCondition' as any) || 'Medical Condition'}</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">{t('medicalCondition' as any) || 'Medical Condition'} <span className="text-red-500">*</span></label>
                             <select
+                                required
                                 value={formState.medicalCondition}
-                                onChange={(e) => setFormState((prev) => ({ ...prev, medicalCondition: e.target.value }))}
+                                onChange={(e) => setFormState((prev: any) => ({ ...prev, medicalCondition: e.target.value }))}
                                 className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"
                             >
                                 <option value="">Select Condition</option>
@@ -301,12 +575,13 @@ const EditStaffView = () => {
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Has Disabilities?</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Has Disabilities? <span className="text-red-500">*</span></label>
                             <select
+                                required
                                 value={formState.hasDisability}
                                 onChange={(e) => {
                                     const val = e.target.value;
-                                    setFormState((prev) => ({
+                                    setFormState((prev: any) => ({
                                         ...prev,
                                         hasDisability: val,
                                         disabilityType: val === 'No' ? '' : prev.disabilityType
@@ -325,7 +600,7 @@ const EditStaffView = () => {
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Disabilities List</label>
                                 <select
                                     value={formState.disabilityType}
-                                    onChange={(e) => setFormState((prev) => ({ ...prev, disabilityType: e.target.value }))}
+                                    onChange={(e) => setFormState((prev: any) => ({ ...prev, disabilityType: e.target.value }))}
                                     className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"
                                 >
                                     <option value="">Select Disability</option>
@@ -338,12 +613,13 @@ const EditStaffView = () => {
                         )}
 
                         <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Location (GPS)</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Location (GPS) <span className="text-red-500">*</span></label>
                             <div className="flex gap-2">
                                 <input
+                                    required
                                     type="text"
                                     value={formState.location}
-                                    onChange={(e) => setFormState((prev) => ({ ...prev, location: e.target.value }))}
+                                    onChange={(e) => setFormState((prev: any) => ({ ...prev, location: e.target.value }))}
                                     className="flex-1 rounded-lg border border-gray-300 px-4 py-2 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"
                                     placeholder="GPS Coordinates"
                                 />
@@ -355,6 +631,102 @@ const EditStaffView = () => {
                                 >
                                     {isLocating ? 'Locating...' : (t('getLocation' as any) || 'Get Location')}
                                 </button>
+                            </div>
+                        </div>
+
+                        <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 pb-4 border-t border-b border-gray-100">
+                            {/* Front ID Upload */}
+                            <div className="flex flex-col">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Front ID <span className="text-red-500">*</span></label>
+                                <div className="relative border-2 border-dashed border-gray-300 rounded-lg p-4 hover:border-purple-500 hover:bg-purple-50 transition cursor-pointer flex flex-col items-center justify-center min-h-[150px]"
+                                    onClick={() => document.getElementById('frontIdInput')?.click()}
+                                >
+                                    {formState.idCardFront ? (
+                                        <div className="relative w-full h-full flex flex-col items-center justify-center">
+                                            <img src={formState.idCardFront} alt="Front ID" className="h-32 object-contain rounded-md" />
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setFormState((prev: any) => ({ ...prev, idCardFront: null }));
+                                                }}
+                                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition shadow-sm z-10"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <svg className="w-8 h-8 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                            </svg>
+                                            <span className="text-sm text-gray-500">Click to upload Front ID</span>
+                                        </>
+                                    )}
+                                    <input
+                                        id="frontIdInput"
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                                const reader = new FileReader();
+                                                reader.onloadend = () => setFormState((prev: any) => ({ ...prev, idCardFront: reader.result as string }));
+                                                reader.readAsDataURL(file);
+                                            }
+                                        }}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Back ID Upload */}
+                            <div className="flex flex-col">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Back ID</label>
+                                <div className="relative border-2 border-dashed border-gray-300 rounded-lg p-4 hover:border-purple-500 hover:bg-purple-50 transition cursor-pointer flex flex-col items-center justify-center min-h-[150px]"
+                                    onClick={() => document.getElementById('backIdInput')?.click()}
+                                >
+                                    {formState.idCardBack ? (
+                                        <div className="relative w-full h-full flex flex-col items-center justify-center">
+                                            <img src={formState.idCardBack} alt="Back ID" className="h-32 object-contain rounded-md" />
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setFormState((prev: any) => ({ ...prev, idCardBack: null }));
+                                                }}
+                                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition shadow-sm z-10"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <svg className="w-8 h-8 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                            </svg>
+                                            <span className="text-sm text-gray-500">Click to upload Back ID</span>
+                                        </>
+                                    )}
+                                    <input
+                                        id="backIdInput"
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                                const reader = new FileReader();
+                                                reader.onloadend = () => setFormState((prev: any) => ({ ...prev, idCardBack: reader.result as string }));
+                                                reader.readAsDataURL(file);
+                                            }
+                                        }}
+                                    />
+                                </div>
                             </div>
                         </div>
 
@@ -370,7 +742,7 @@ const EditStaffView = () => {
                                 required
                                 type="text"
                                 value={formState.region}
-                                onChange={(e) => setFormState((prev) => ({ ...prev, region: e.target.value }))}
+                                onChange={(e) => setFormState((prev: any) => ({ ...prev, region: e.target.value }))}
                                 className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"
                                 placeholder={t('enterRegion')}
                             />
@@ -384,7 +756,7 @@ const EditStaffView = () => {
                                 required
                                 type="text"
                                 value={formState.city}
-                                onChange={(e) => setFormState((prev) => ({ ...prev, city: e.target.value }))}
+                                onChange={(e) => setFormState((prev: any) => ({ ...prev, city: e.target.value }))}
                                 className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"
                                 placeholder={t('enterCity')}
                             />
@@ -395,7 +767,7 @@ const EditStaffView = () => {
                             <input
                                 type="text"
                                 value={formState.subCity}
-                                onChange={(e) => setFormState((prev) => ({ ...prev, subCity: e.target.value }))}
+                                onChange={(e) => setFormState((prev: any) => ({ ...prev, subCity: e.target.value }))}
                                 className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"
                                 placeholder={t('enterSubCity')}
                             />
@@ -406,7 +778,7 @@ const EditStaffView = () => {
                             <input
                                 type="text"
                                 value={formState.woreda}
-                                onChange={(e) => setFormState((prev) => ({ ...prev, woreda: e.target.value }))}
+                                onChange={(e) => setFormState((prev: any) => ({ ...prev, woreda: e.target.value }))}
                                 className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"
                                 placeholder={t('enterWoreda')}
                             />
@@ -417,7 +789,7 @@ const EditStaffView = () => {
                             <input
                                 type="text"
                                 value={formState.kebele}
-                                onChange={(e) => setFormState((prev) => ({ ...prev, kebele: e.target.value }))}
+                                onChange={(e) => setFormState((prev: any) => ({ ...prev, kebele: e.target.value }))}
                                 className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"
                                 placeholder={t('enterKebele')}
                             />
@@ -428,7 +800,7 @@ const EditStaffView = () => {
                             <input
                                 type="text"
                                 value={formState.street}
-                                onChange={(e) => setFormState((prev) => ({ ...prev, street: e.target.value }))}
+                                onChange={(e) => setFormState((prev: any) => ({ ...prev, street: e.target.value }))}
                                 className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"
                                 placeholder={t('enterStreet')}
                             />
@@ -439,7 +811,7 @@ const EditStaffView = () => {
                             <input
                                 type="text"
                                 value={formState.homeNumber}
-                                onChange={(e) => setFormState((prev) => ({ ...prev, homeNumber: e.target.value }))}
+                                onChange={(e) => setFormState((prev: any) => ({ ...prev, homeNumber: e.target.value }))}
                                 className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"
                                 placeholder={t('enterHomeNumber')}
                             />
@@ -455,6 +827,7 @@ const EditStaffView = () => {
                         </button>
                         <button
                             type="button"
+                            onClick={() => navigate('/admin/view-staff')}
                             className="bg-gray-200 text-gray-700 px-6 py-2 rounded-lg font-semibold hover:bg-gray-300 transition"
                         >
                             {t('cancel')}

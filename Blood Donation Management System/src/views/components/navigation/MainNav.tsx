@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useToast } from '../../../contexts/ToastContext';
 
 const donorNavItems = [
   { path: '/donor-dashboard', labelKey: 'dashboard' },
@@ -14,16 +15,18 @@ const hospitalNavItems = [
   { path: '/hospital/emergency-request', labelKey: 'emergencyRequest' },
   { path: '/hospital/find-donors', labelKey: 'findDonor' },
   { path: '/hospital/my-requests', labelKey: 'myRequests' },
+  { path: '/hospital/my-donations', labelKey: 'myDonations' },
 ];
 
 const MainNav = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const { lang, toggleLanguage, t, setLanguage } = useLanguage();
-  const { isAuthenticated, logout, user } = useAuth();
+  const { t, lang, setLanguage } = useLanguage();
+  const { toast } = useToast();
+  const { user, logout, isAuthenticated } = useAuth();
   const location = useLocation();
 
   // Show "Donor Mode" only on specific donor dashboard pages, NOT on public pages like register/awards
-  const isDonorPage = location.pathname.startsWith('/donor-dashboard') || (isAuthenticated && location.pathname.startsWith('/donors'));
+  const isDonorPage = location.pathname.startsWith('/donor-dashboard') || (user && location.pathname.startsWith('/donors'));
 
   // Show "Hospital Mode" on hospital pages
   // Determine if we are in a "Donor Context"
@@ -96,11 +99,12 @@ const MainNav = () => {
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-3">
           <NavLink to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-            <div
-              className={`flex h-10 w-10 items-center justify-center rounded-full text-lg font-semibold text-white ${isHospitalPage ? 'bg-blue-600 shadow-sm' : 'bg-primary'
-                }`}
-            >
-              B
+            <div className={`h-10 w-10 rounded-full flex items-center justify-center overflow-hidden border border-gray-100 ${isHospitalPage ? 'bg-white' : 'bg-red-50'}`}>
+              <img
+                src="/logo.png"
+                alt="BDMS Logo"
+                className="h-full w-full object-cover"
+              />
             </div>
             <p className="font-display text-lg font-semibold text-slate-900">BDMS Ethiopia</p>
           </NavLink>
@@ -240,7 +244,7 @@ const MainNav = () => {
                 <button
                   onClick={() => {
                     if (window.confirm('Are you sure you want to delete your profile? This action cannot be undone.')) {
-                      alert('Profile delete request submitted.');
+                      toast.info('Profile delete request submitted.');
                     }
                   }}
                   className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"

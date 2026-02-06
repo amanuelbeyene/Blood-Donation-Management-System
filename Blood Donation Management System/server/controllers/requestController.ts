@@ -30,6 +30,7 @@ export const createRequest = async (req: Request, res: Response): Promise<void> 
                 bloodType: data.bloodType,
                 urgency: data.urgency,
                 unitsNeeded: parseInt(data.unitsNeeded),
+                note: data.note,
                 status: 'pending'
             },
             include: { hospital: true }

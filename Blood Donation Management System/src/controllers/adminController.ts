@@ -6,10 +6,12 @@ export interface Admin {
   fullName: string;
   email: string;
   phone?: string;
+  landline?: string;
   role: string; // 'admin' | 'super_admin'
   profilePicture?: string;
   status?: string;
 
+  // Address
   // Address
   region?: string;
   city?: string;
@@ -21,6 +23,17 @@ export interface Admin {
   location?: string;
   latitude?: number;
   longitude?: number;
+
+  // Personal
+  bloodType?: string;
+  birthDate?: string;
+  age?: number | string;
+  maritalStatus?: string;
+  gender?: string;
+  fanNumber?: string;
+  createdAt?: string;
+  idCardFront?: string | null;
+  idCardBack?: string | null;
 }
 
 export const fetchAdmins = async (): Promise<Admin[]> => {
@@ -57,6 +70,11 @@ export const fetchDashboardStats = async (): Promise<any> => {
 };
 
 export const fetchDonationHistory = async (): Promise<any[]> => {
-  // TODO: Replace with actual API call
-  return [];
+  try {
+    const response = await apiClient.get('/donations');
+    return response.data;
+  } catch (error) {
+    console.error("Failed to fetch donation history:", error);
+    return [];
+  }
 };

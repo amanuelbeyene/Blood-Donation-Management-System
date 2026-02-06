@@ -1,71 +1,21 @@
 import { useEffect, useState } from 'react';
 import { useLanguage } from '../../../contexts/LanguageContext';
-
-// Mock Staff type
-interface Staff {
-    id: string;
-    fullName: string;
-    email: string;
-    phone: string;
-    role: string;
-    profilePicture?: string;
-    locationDetails?: {
-        region: string;
-        city: string;
-        subCity: string;
-        woreda: string;
-        kebele: string;
-        street: string;
-        homeNumber: string;
-    };
-    location?: string;
-    status: 'active' | 'inactive';
-    joinedDate: string;
-}
-
-// Mock Data
-const MOCK_STAFF: Staff[] = [
-    {
-        id: 'STF001',
-        fullName: 'Abebe Kebede',
-        email: 'abebe.k@example.com',
-        phone: '+251 911 000 001',
-        role: 'Staff',
-        status: 'active',
-        joinedDate: '2024-03-10',
-        locationDetails: {
-            region: 'Addis Ababa',
-            city: 'Addis Ababa',
-            subCity: 'Arada',
-            woreda: '01',
-            kebele: '04',
-            street: 'King George VI St',
-            homeNumber: '202'
-        }
-    },
-    {
-        id: 'STF002',
-        fullName: 'Marta Yilma',
-        email: 'marta.y@example.com',
-        phone: '+251 911 000 002',
-        role: 'Staff',
-        status: 'active',
-        joinedDate: '2024-04-15',
-        location: 'Bahir Dar, Amhara'
-    }
-];
+import { useToast } from '../../../contexts/ToastContext';
+import { fetchStaff, deleteStaff } from '../../../controllers/staffController';
 
 const DeleteStaffView = () => {
     const { t } = useLanguage();
-    const [staffList, setStaffList] = useState<Staff[]>([]);
-    const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
+    const { toast } = useToast();
+    const [staffList, setStaffList] = useState<any[]>([]);
+    const [selectedStaff, setSelectedStaff] = useState<any | null>(null);
 
     useEffect(() => {
-        // Simulate fetch
-        setStaffList(MOCK_STAFF);
+        fetchStaff()
+            .then(data => setStaffList(data))
+            .catch(err => console.error("Failed to fetch staff", err));
     }, []);
 
-    const formatLocation = (staff: Staff): string => {
+    const formatLocation = (staff: any): string => {
         if (staff.locationDetails) {
             const parts = [
                 staff.locationDetails.region,
@@ -78,29 +28,24 @@ const DeleteStaffView = () => {
             ].filter(Boolean);
             return parts.join(', ') || staff.location || 'N/A';
         }
-        return staff.location || 'N/A';
+        return staff.city || staff.location || 'N/A';
     };
 
-    const getFullAddress = (staff: Staff): string => {
-        if (staff.locationDetails) {
-            const parts: string[] = [];
-            if (staff.locationDetails.region) parts.push(`${t('region')}: ${staff.locationDetails.region}`);
-            if (staff.locationDetails.city) parts.push(`${t('city')}: ${staff.locationDetails.city}`);
-            if (staff.locationDetails.subCity) parts.push(`${t('subCity')}: ${staff.locationDetails.subCity}`);
-            if (staff.locationDetails.woreda) parts.push(`${t('woreda')}: ${staff.locationDetails.woreda}`);
-            if (staff.locationDetails.kebele) parts.push(`${t('kebele')}: ${staff.locationDetails.kebele}`);
-            if (staff.locationDetails.street) parts.push(`${t('street')}: ${staff.locationDetails.street}`);
-            if (staff.locationDetails.homeNumber) parts.push(`${t('homeNumber')}: ${staff.locationDetails.homeNumber}`);
-            return parts.join(' | ') || staff.location || 'N/A';
-        }
-        return staff.location || 'N/A';
+    const getFullAddress = (staff: any): string => {
+        return staff.city || staff.location || 'N/A';
     };
 
-    const handleDelete = (staff: Staff) => {
+    const handleDelete = async (staff: any) => {
         if (window.confirm(`${t('confirmDeleteDonor')} ${staff.fullName}? ${t('actionCannotBeUndone')}`)) {
-            alert(`Staff ${staff.fullName} deleted successfully! Backend integration coming soon.`);
-            setStaffList((prev) => prev.filter((d) => d.id !== staff.id));
-            setSelectedStaff(null);
+            try {
+                await deleteStaff(staff.id);
+                toast.success(`Staff ${staff.fullName} deleted successfully!`);
+                setStaffList((prev) => prev.filter((d) => d.id !== staff.id));
+                setSelectedStaff(null);
+            } catch (error) {
+                console.error("Failed to delete staff", error);
+                toast.error("Failed to delete staff");
+            }
         }
     };
 
@@ -160,6 +105,10 @@ const DeleteStaffView = () => {
                             <p className="text-sm text-gray-600">{t('phoneNumber')}</p>
                             <p className="font-medium">{selectedStaff.phone || 'N/A'}</p>
                         </div>
+                        <div>
+                            <p className="text-sm text-gray-600">Landline</p>
+                            <p className="font-medium">{selectedStaff.landline || 'N/A'}</p>
+                        </div>
                         <div className="md:col-span-2">
                             <p className="text-sm text-gray-600">{t('address')}</p>
                             <p className="font-medium">{getFullAddress(selectedStaff)}</p>
@@ -193,7 +142,9 @@ const DeleteStaffView = () => {
                             <tr>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('name')}</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('emailAddress')}</th>
+
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('phoneNumber')}</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Landline</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('address')}</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('actions')}</th>
@@ -228,7 +179,9 @@ const DeleteStaffView = () => {
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{staff.email || 'N/A'}</td>
+
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{staff.phone || 'N/A'}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{staff.landline || 'N/A'}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                             <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-semibold">
                                                 {staff.role}

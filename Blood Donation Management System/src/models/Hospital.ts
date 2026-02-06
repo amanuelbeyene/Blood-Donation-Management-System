@@ -14,6 +14,7 @@ export interface Hospital {
   id: string;
   name: string;
   phone?: string;
+  landline?: string;
   email?: string;
   username?: string;
   password?: string;
@@ -31,5 +32,6 @@ export interface Hospital {
   longitude?: number;
   status?: 'Active' | 'Pending' | 'Rejected';
   rejectionReason?: string;
+  createdAt?: string;
 }
 

@@ -3,7 +3,11 @@ import { useState } from 'react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useAuth } from '../../../contexts/AuthContext';
 
-const AdminHeader = () => {
+interface AdminHeaderProps {
+  onMenuClick?: () => void;
+}
+
+const AdminHeader = ({ onMenuClick }: AdminHeaderProps) => {
   const { lang, setLanguage, t } = useLanguage();
   const { logout, user } = useAuth();
   const navigate = useNavigate();
@@ -24,13 +28,26 @@ const AdminHeader = () => {
   };
 
   return (
-    <header className="bg-red-600 text-white px-6 py-4 flex items-center justify-between shadow-md relative z-20">
-      <NavLink to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-lg font-semibold text-red-600">
-          B
-        </div>
-        <p className="font-display text-lg font-semibold">BDMS</p>
-      </NavLink>
+    <header className="bg-red-600 text-white px-4 md:px-6 py-4 flex items-center justify-between shadow-md relative z-20 transition-all duration-300">
+      <div className="flex items-center gap-3">
+        {/* Mobile Menu Toggle */}
+        <button
+          onClick={onMenuClick}
+          className="p-1 mr-2 hover:bg-red-700 rounded-lg lg:hidden focus:outline-none"
+          aria-label="Toggle Menu"
+        >
+          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+
+        <NavLink to="/" className="flex items-center gap-2 md:gap-3 hover:opacity-80 transition-opacity">
+          <div className="h-10 w-10 rounded-full bg-white flex items-center justify-center overflow-hidden">
+            <img src="/logo.png" alt="BDMS Logo" className="h-full w-full object-cover" />
+          </div>
+          <p className="font-display text-lg font-bold text-white">BDMS Ethiopia</p>
+        </NavLink>
+      </div>
       <div className="flex items-center gap-3">
         <div className="flex rounded-lg border border-red-200 bg-white/10 text-sm font-semibold text-white overflow-hidden">
           <button
@@ -45,7 +62,7 @@ const AdminHeader = () => {
             onClick={() => setLanguage('am')}
             className={`px-3 py-2 transition ${lang === 'am' ? 'bg-white text-red-600' : 'hover:bg-red-500/30'}`}
           >
-            AMH
+            አማ
           </button>
         </div>
 

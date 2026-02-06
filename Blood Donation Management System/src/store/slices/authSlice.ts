@@ -1,12 +1,13 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
-export type UserRole = 'donor' | 'hospital' | 'admin' | 'super_admin' | 'staff' | null;
+export type UserRole = 'donor' | 'hospital' | 'admin' | 'super_admin' | 'staff' | 'medical_staff' | null;
 
 interface AuthState {
   isAuthenticated: boolean;
   role: UserRole;
   userId?: string;
   fullName?: string;
+  profilePicture?: string;
 }
 
 const initialState: AuthState = {
@@ -14,17 +15,19 @@ const initialState: AuthState = {
   role: null,
   userId: undefined,
   fullName: undefined,
+  profilePicture: undefined,
 };
 
 const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
-    login(state, action: PayloadAction<{ role: UserRole; userId?: string; fullName: string }>) {
+    login(state, action: PayloadAction<{ role: UserRole; userId?: string; fullName: string; profilePicture?: string }>) {
       state.isAuthenticated = true;
       state.role = action.payload.role;
       state.userId = action.payload.userId;
       state.fullName = action.payload.fullName;
+      state.profilePicture = action.payload.profilePicture;
     },
     logout(state) {
       state.isAuthenticated = false;

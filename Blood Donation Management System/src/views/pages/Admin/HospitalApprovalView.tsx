@@ -1,69 +1,105 @@
-import { useState } from 'react';
-import { useMockData } from '../../../contexts/MockDataContext';
+import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
+import { useMockData } from '../../../contexts/MockDataContext'; // Kept for updateHospitalStatus if needed during transition
+import { fetchHospitals, updateHospital } from '../../../controllers/hospitalController';
 import { Hospital } from '../../../models/Hospital';
 
-interface PendingEdit {
-    id: string;
-    originalId: string;
-    name: string;
-    email: string;
-    phone: string;
-    location: string;
-    hospitalType: string;
-    source: string;
-    auditLog: string;
-    status: string;
-    changes: {
-        field: string;
-        oldValue: string;
-        newValue: string;
-    }[];
-}
 
+
+import { useToast } from '../../../contexts/ToastContext';
+import { validatePassword } from '../../../utils/validation';
+
+// const { hospitals, updateHospitalStatus } = useMockData(); // Mock removed
 const HospitalApprovalView = () => {
-    const { hospitals, updateHospitalStatus } = useMockData();
+    const { toast } = useToast();
+    const [hospitals, setHospitals] = useState<Hospital[]>([]);
     const [selectedHospital, setSelectedHospital] = useState<Hospital | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
     const [rejectionReason, setRejectionReason] = useState('');
+    const [loading, setLoading] = useState(true);
 
-    // State for Pending Edits
-    const [pendingEdits, setPendingEdits] = useState<PendingEdit[]>([
-        {
-            id: 'edit-hosp-1',
-            originalId: 'hosp-123',
-            name: 'City General Hospital',
-            email: 'admin@citygeneral.com',
-            phone: '+251 11 123 4567',
-            location: 'Addis Ababa',
-            hospitalType: 'Government Hospital',
-            source: 'Self',
-            auditLog: 'License updated (15m ago)',
-            status: 'Active',
-            changes: [
-                { field: 'Business License', oldValue: 'LIC-OLD-123', newValue: 'LIC-NEW-789' },
-                { field: 'Phone', oldValue: '+251 11 123 0000', newValue: '+251 11 123 4567' }
-            ]
-        }
-    ]);
+    // Initial load
+    useEffect(() => {
+        loadHospitals();
+    }, []);
 
-    const [selectedEdit, setSelectedEdit] = useState<PendingEdit | null>(null);
-    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-
-    const pendingHospitals = hospitals.filter(h => h.status === 'Pending');
-
-    const handleApprove = (id: string) => {
-        if (confirm('Are you sure you want to approve this hospital?')) {
-            updateHospitalStatus(id, 'Active');
+    const loadHospitals = async () => {
+        try {
+            setLoading(true);
+            const data = await fetchHospitals();
+            setHospitals(data);
+        } catch (error) {
+            console.error("Failed to load hospitals", error);
+            toast.error("Failed to load hospitals");
+        } finally {
+            setLoading(false);
         }
     };
 
-    const handleReject = () => {
+
+
+    const location = useLocation();
+    const [activeTab, setActiveTab] = useState<'pending' | 'approved' | 'rejected'>('pending');
+
+    useEffect(() => {
+        if (location.pathname.includes('approve-hospital')) {
+            setActiveTab('approved');
+        } else if (location.pathname.includes('reject-hospital')) {
+            setActiveTab('rejected');
+        } else {
+            setActiveTab('pending');
+        }
+    }, [location.pathname]);
+
+    // Filter local state based on API data
+    // Filter local state based on API data
+
+    const pendingHospitals = hospitals.filter(h => !h.status || h.status.trim().toLowerCase() === 'pending');
+    const approvedHospitals = hospitals.filter(h => h.status?.trim().toLowerCase() === 'active');
+    const rejectedHospitals = hospitals.filter(h => h.status?.trim().toLowerCase() === 'rejected');
+
+    const handleApprove = async (id: string) => {
+        if (confirm('Are you sure you want to approve this hospital?')) {
+            try {
+                await updateHospital(id, { status: 'Active' });
+                // Optimistic Update
+                setHospitals(prev => prev.map(h => h.id === id ? { ...h, status: 'Active' } : h));
+                toast.success('Hospital approved successfully');
+            } catch (error) {
+                console.error("Approval failed", error);
+                toast.error("Failed to approve hospital");
+            }
+        }
+    };
+
+    const handleReject = async () => {
         if (selectedHospital && rejectionReason.trim()) {
-            updateHospitalStatus(selectedHospital.id, 'Rejected', rejectionReason);
-            setIsRejectModalOpen(false);
-            setSelectedHospital(null);
-            setRejectionReason('');
+            try {
+                await updateHospital(selectedHospital.id, { status: 'Rejected', rejectionReason } as any);
+                setHospitals(prev => prev.map(h => h.id === selectedHospital.id ? { ...h, status: 'Rejected', rejectionReason } : h));
+
+                setIsRejectModalOpen(false);
+                setSelectedHospital(null);
+                setRejectionReason('');
+                toast.success('Hospital rejected successfully');
+            } catch (error) {
+                console.error("Rejection failed", error);
+                toast.error("Failed to reject hospital");
+            }
+        }
+    };
+
+    const handleClear = async (id: string) => {
+        if (confirm('Are you sure you want to clear this status and move back to pending?')) {
+            try {
+                await updateHospital(id, { status: 'Pending', rejectionReason: null } as any);
+                setHospitals(prev => prev.map(h => h.id === id ? { ...h, status: 'Pending', rejectionReason: undefined } : h));
+                toast.success("Status cleared, moved to Pending");
+            } catch (error) {
+                console.error("Clear failed", error);
+                toast.error("Failed to clear status");
+            }
         }
     };
 
@@ -77,192 +113,274 @@ const HospitalApprovalView = () => {
         setIsModalOpen(true);
     };
 
-    // --- Edit Approval Handlers ---
-    const openEditModal = (edit: PendingEdit) => {
-        setSelectedEdit(edit);
-        setIsEditModalOpen(true);
-    };
 
-    const handleEditApprove = (id: string) => {
-        if (confirm('Are you sure you want to approve these changes?')) {
-            setPendingEdits(prev => prev.filter(e => e.id !== id));
-            setIsEditModalOpen(false);
-        }
-    };
-
-    const handleEditReject = (id: string) => {
-        if (confirm('Are you sure you want to reject these changes?')) {
-            setPendingEdits(prev => prev.filter(e => e.id !== id));
-            setIsEditModalOpen(false);
-        }
-    };
 
     return (
         <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-gray-900">Hospital Approval</h2>
+            <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-gray-900">Hospital Approval</h2>
+                <button
+                    onClick={loadHospitals}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center gap-2"
+                >
+                    <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Refresh
+                </button>
+            </div>
+
+            {/* Tabs */}
+            <div className="border-b border-gray-200">
+                <nav className="-mb-px flex space-x-8">
+                    <button
+                        onClick={() => setActiveTab('pending')}
+                        className={`${activeTab === 'pending'
+                            ? 'border-purple-500 text-purple-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+                    >
+                        Pending Hospitals
+                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${activeTab === 'pending' ? 'bg-purple-100 text-purple-600' : 'bg-gray-100 text-gray-900'}`}>
+                            {pendingHospitals.length}
+                        </span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('approved')}
+                        className={`${activeTab === 'approved'
+                            ? 'border-green-500 text-green-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+                    >
+                        Approved Hospitals
+                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${activeTab === 'approved' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-900'}`}>
+                            {approvedHospitals.length}
+                        </span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('rejected')}
+                        className={`${activeTab === 'rejected'
+                            ? 'border-red-500 text-red-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+                    >
+                        Rejected Hospitals
+                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${activeTab === 'rejected' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-900'}`}>
+                            {rejectedHospitals.length}
+                        </span>
+                    </button>
+                </nav>
+            </div>
+
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                {pendingHospitals.length === 0 ? (
-                    <div className="p-6 text-center text-gray-500">No pending hospital approvals.</div>
-                ) : (
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
-                                <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Audit Log</th>
-                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                                {pendingHospitals.map((hospital) => (
-                                    <tr key={hospital.id}>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex items-center">
-                                                <div className="ml-4">
-                                                    <div className="text-sm font-medium text-gray-900">{hospital.name}</div>
-                                                    <div className="text-sm text-gray-500">{hospital.email}</div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-sm text-gray-900">{hospital.phone}</div>
-                                            <div className="text-xs text-gray-500">{hospital.contactDoctorName}</div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-sm text-gray-500">{hospital.location}</div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                                // Mock logic: randomly assign source based on ID or just default to Self for now
-                                                (hospital.id.includes('stf') || parseInt(hospital.id) % 2 === 0) ? 'bg-purple-100 text-purple-800' : 'bg-green-100 text-green-800'
-                                                }`}>
-                                                {(hospital.id.includes('stf') || parseInt(hospital.id) % 2 === 0) ? 'Staff' : 'Self'}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                                                {hospital.hospitalType}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
-                                            <div><span className="font-semibold">Registered:</span> 1d ago</div>
-                                            {(hospital.id.includes('stf')) && <div><span className="font-semibold">By:</span> Dr. House</div>}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            <button
-                                                onClick={() => openViewModal(hospital)}
-                                                className="text-purple-600 hover:text-purple-900 mr-4"
-                                                title="View Details"
-                                            >
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                            </button>
-                                            <button
-                                                onClick={() => handleApprove(hospital.id)}
-                                                className="text-green-600 hover:text-green-900 mr-4"
-                                                title="Approve"
-                                            >
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                                            </button>
-                                            <button
-                                                onClick={() => openRejectModal(hospital)}
-                                                className="text-red-600 hover:text-red-900"
-                                                title="Reject"
-                                            >
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                                            </button>
-                                        </td>
+                {/* PENDING TABLE */}
+                {activeTab === 'pending' && (
+                    pendingHospitals.length === 0 ? (
+                        <div className="p-6 text-center text-gray-500">No pending hospital approvals.</div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Audit Log</th>
+                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {pendingHospitals.map((hospital) => (
+                                        <tr key={hospital.id}>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex items-center">
+                                                    <div className="ml-4">
+                                                        <div className="text-sm font-medium text-gray-900">{hospital.name}</div>
+                                                        <div className="text-sm text-gray-500">{hospital.email}</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="text-sm text-gray-900">{hospital.phone}</div>
+                                                <div className="text-xs text-gray-500">{hospital.contactDoctorName}</div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="text-sm text-gray-500">{hospital.location}</div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                                    Self
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                                    {hospital.hospitalType}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
+                                                <div><span className="font-semibold">Registered:</span> {hospital.createdAt ? new Date(hospital.createdAt).toLocaleDateString() : 'N/A'}</div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                <button onClick={() => openViewModal(hospital)} className="text-purple-600 hover:text-purple-900 mr-4" title="View Details">
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                                </button>
+                                                <button onClick={() => handleApprove(hospital.id)} className="text-green-600 hover:text-green-900 mr-4" title="Approve">
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                                                </button>
+                                                <button onClick={() => openRejectModal(hospital)} className="text-red-600 hover:text-red-900" title="Reject">
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )
+                )}
+
+                {/* APPROVED TABLE */}
+                {activeTab === 'approved' && (
+                    approvedHospitals.length === 0 ? (
+                        <div className="p-6 text-center text-gray-500">No approved hospitals yet.</div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registered</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {approvedHospitals.map((hospital) => (
+                                        <tr key={hospital.id}>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex items-center">
+                                                    <div className="ml-4">
+                                                        <div className="text-sm font-medium text-gray-900">{hospital.name}</div>
+                                                        <div className="text-sm text-gray-500">{hospital.email}</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="text-sm text-gray-900">{hospital.phone}</div>
+                                                <div className="text-xs text-gray-500">{hospital.contactDoctorName}</div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="text-sm text-gray-500">{hospital.location}</div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                                    {hospital.hospitalType}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                                    Self
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
+                                                {hospital.createdAt ? new Date(hospital.createdAt).toLocaleDateString() : 'N/A'}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                                    Active
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                <button onClick={() => openViewModal(hospital)} className="text-purple-600 hover:text-purple-900 mr-4">View</button>
+                                                {/* Clear Button */}
+                                                <button
+                                                    onClick={() => handleClear(hospital.id)}
+                                                    className="text-gray-500 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded text-xs transition-colors"
+                                                    title="Move back to Pending"
+                                                >
+                                                    Clear Status
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )
+                )}
+
+                {/* REJECTED TABLE */}
+                {activeTab === 'rejected' && (
+                    rejectedHospitals.length === 0 ? (
+                        <div className="p-6 text-center text-gray-500">No rejected hospitals.</div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registered</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rejection Reason</th>
+                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {rejectedHospitals.map((hospital) => (
+                                        <tr key={hospital.id}>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex items-center">
+                                                    <div className="ml-4">
+                                                        <div className="text-sm font-medium text-gray-900">{hospital.name}</div>
+                                                        <div className="text-sm text-gray-500">{hospital.email}</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="text-sm text-gray-900">{hospital.phone}</div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                                    Self
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
+                                                {hospital.createdAt ? new Date(hospital.createdAt).toLocaleDateString() : 'N/A'}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800 truncate max-w-xs" title={hospital.rejectionReason}>
+                                                    {hospital.rejectionReason || 'No reason provided'}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                <button onClick={() => openViewModal(hospital)} className="text-purple-600 hover:text-purple-900 mr-4">View</button>
+                                                {/* Clear Button */}
+                                                <button
+                                                    onClick={() => handleClear(hospital.id)}
+                                                    className="text-gray-500 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded text-xs transition-colors"
+                                                    title="Move back to Pending"
+                                                >
+                                                    Clear Status
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )
                 )}
             </div>
 
-            {/* Edit Hospital Approval Section */}
-            <h2 className="text-2xl font-bold text-gray-900 pt-8">Edit Hospital Approval</h2>
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                {pendingEdits.length === 0 ? (
-                    <div className="p-6 text-center text-gray-500">No pending edits.</div>
-                ) : (
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
-                                <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                                {pendingEdits.map((hospital) => (
-                                    <tr key={hospital.id}>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex items-center">
-                                                <div className="ml-4">
-                                                    <div className="text-sm font-medium text-gray-900">{hospital.name}</div>
-                                                    <div className="text-sm text-gray-500">{hospital.email}</div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-sm text-gray-900">{hospital.phone}</div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-sm text-gray-500">{hospital.location}</div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                                                {hospital.source}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
-                                                {hospital.hospitalType}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
-                                            <div className="font-semibold bg-gray-100 px-2 py-1 rounded inline-block">Updated</div>
-                                            <div className="mt-1 text-gray-400 text-xs">Requested: 15m ago</div>
-                                            <div className="text-gray-500 line-clamp-1">Change: {hospital.changes[0].field}</div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            <button
-                                                onClick={() => openEditModal(hospital)}
-                                                className="text-purple-600 hover:text-purple-900 mr-4"
-                                                title="View Changes"
-                                            >
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                            </button>
-                                            <button
-                                                onClick={() => handleEditApprove(hospital.id)}
-                                                className="text-green-600 hover:text-green-900 mr-4"
-                                                title="Approve Changes"
-                                            >
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                                            </button>
-                                            <button
-                                                onClick={() => handleEditReject(hospital.id)}
-                                                className="text-red-600 hover:text-red-900"
-                                                title="Reject Changes"
-                                            >
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </div>
+
+
 
             {
                 isModalOpen && selectedHospital && (
@@ -393,63 +511,7 @@ const HospitalApprovalView = () => {
                 )
             }
 
-            {/* Edit Comparison Modal */}
-            {isEditModalOpen && selectedEdit && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full">
-                        <div className="p-6">
-                            <div className="flex justify-between items-start mb-6 border-b pb-4">
-                                <div>
-                                    <h3 className="text-2xl font-bold text-gray-900">Review Changes</h3>
-                                    <p className="text-sm text-gray-500 mt-1">Review the changes requested by {selectedEdit.name}</p>
-                                </div>
-                                <button onClick={() => setIsEditModalOpen(false)} className="text-gray-400 hover:text-gray-500">
-                                    <span className="sr-only">Close</span>
-                                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                </button>
-                            </div>
 
-                            <div className="overflow-hidden border rounded-lg">
-                                <table className="min-w-full divide-y divide-gray-200">
-                                    <thead className="bg-gray-50">
-                                        <tr>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Field Name</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/3">Original Value</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/3">New Value</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="bg-white divide-y divide-gray-200">
-                                        {selectedEdit.changes.map((change, idx) => (
-                                            <tr key={idx}>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{change.field}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-red-500 bg-red-50">{change.oldValue}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 bg-green-50 font-semibold">{change.newValue}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            <div className="mt-8 flex justify-end gap-3">
-                                <button
-                                    onClick={() => handleEditReject(selectedEdit.id)}
-                                    className="px-4 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 font-medium"
-                                >
-                                    Reject Changes
-                                </button>
-                                <button
-                                    onClick={() => handleEditApprove(selectedEdit.id)}
-                                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
-                                >
-                                    Approve Changes
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* Reject Modal */}
             {

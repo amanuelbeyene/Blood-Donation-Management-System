@@ -1,5 +1,6 @@
 import { apiClient } from './apiClient';
 import type { Hospital } from '../models/Hospital';
+export type { Hospital };
 
 export const fetchHospitals = async (): Promise<Hospital[]> => {
   const response = await apiClient.get('/hospitals');

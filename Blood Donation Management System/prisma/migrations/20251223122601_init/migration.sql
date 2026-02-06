@@ -36,6 +36,7 @@ CREATE TABLE "Donor" (
     "impactScore" INTEGER NOT NULL DEFAULT 0,
     "username" TEXT,
     "password" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "Donor_pkey" PRIMARY KEY ("id")
 );
@@ -65,6 +66,7 @@ CREATE TABLE "Hospital" (
     "profilePicture" TEXT,
     "status" TEXT NOT NULL DEFAULT 'Pending',
     "rejectionReason" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "Hospital_pkey" PRIMARY KEY ("id")
 );
@@ -79,6 +81,7 @@ CREATE TABLE "Request" (
     "unitsNeeded" INTEGER NOT NULL,
     "status" TEXT NOT NULL,
     "requestedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "Request_pkey" PRIMARY KEY ("id")
 );
@@ -91,6 +94,7 @@ CREATE TABLE "Donation" (
     "units" INTEGER NOT NULL,
     "donationDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "status" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "Donation_pkey" PRIMARY KEY ("id")
 );
@@ -102,6 +106,7 @@ CREATE TABLE "Inventory" (
     "unitsAvailable" INTEGER NOT NULL,
     "criticalThreshold" INTEGER NOT NULL,
     "lastUpdated" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "Inventory_pkey" PRIMARY KEY ("id")
 );
@@ -115,9 +120,55 @@ CREATE TABLE "Admin" (
     "email" TEXT NOT NULL,
     "phone" TEXT,
     "role" TEXT NOT NULL DEFAULT 'admin',
+    "profilePicture" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'active',
+    "region" TEXT,
+    "city" TEXT,
+    "subCity" TEXT,
+    "woreda" TEXT,
+    "kebele" TEXT,
+    "street" TEXT,
+    "homeNumber" TEXT,
+    "location" TEXT,
+    "latitude" DOUBLE PRECISION,
+    "longitude" DOUBLE PRECISION,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "Admin_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Staff" (
+    "id" TEXT NOT NULL,
+    "username" TEXT NOT NULL,
+    "password" TEXT NOT NULL,
+    "fullName" TEXT NOT NULL,
+    "email" TEXT NOT NULL,
+    "phone" TEXT NOT NULL,
+    "role" TEXT NOT NULL DEFAULT 'Staff',
+    "profilePicture" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'active',
+    "bloodType" TEXT,
+    "birthDate" TIMESTAMP(3),
+    "age" INTEGER,
+    "maritalStatus" TEXT,
+    "fanNumber" TEXT,
+    "region" TEXT,
+    "city" TEXT,
+    "subCity" TEXT,
+    "woreda" TEXT,
+    "kebele" TEXT,
+    "street" TEXT,
+    "homeNumber" TEXT,
+    "location" TEXT,
+    "latitude" DOUBLE PRECISION,
+    "longitude" DOUBLE PRECISION,
+    "medicalCondition" TEXT,
+    "hasDisability" TEXT,
+    "disabilityType" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Staff_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -140,6 +191,12 @@ CREATE UNIQUE INDEX "Admin_username_key" ON "Admin"("username");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Admin_email_key" ON "Admin"("email");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Staff_username_key" ON "Staff"("username");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Staff_email_key" ON "Staff"("email");
 
 -- AddForeignKey
 ALTER TABLE "Request" ADD CONSTRAINT "Request_hospitalId_fkey" FOREIGN KEY ("hospitalId") REFERENCES "Hospital"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

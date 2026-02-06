@@ -2,11 +2,15 @@ import { useEffect, useState } from 'react';
 import { fetchDonors } from '../../../controllers/donorController';
 import type { Donor } from '../../../models/Donor';
 import { useLanguage } from '../../../contexts/LanguageContext';
+import { useToast } from '../../../contexts/ToastContext';
+import ConfirmationModal from '../../components/common/ConfirmationModal';
 
 const DeleteDonorView = () => {
   const { t } = useLanguage();
+  const { toast } = useToast();
   const [donors, setDonors] = useState<Donor[]>([]);
   const [selectedDonor, setSelectedDonor] = useState<Donor | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     fetchDonors().then(setDonors);
@@ -43,11 +47,47 @@ const DeleteDonorView = () => {
     return donor.location || 'N/A';
   };
 
-  const handleDelete = (donor: Donor) => {
-    if (window.confirm(`${t('confirmDeleteDonor')} ${donor.fullName}? ${t('actionCannotBeUndone')}`)) {
-      alert(`${t('donor')} ${donor.fullName} ${t('deletedSuccessfully')}! Backend integration coming soon.`);
-      setDonors((prev) => prev.filter((d) => d.id !== donor.id));
+  const handleDeleteClick = () => {
+    setIsModalOpen(true);
+  };
+
+  const executeDelete = async () => {
+    if (!selectedDonor) return;
+
+    try {
+      const { deleteDonor } = await import('../../../controllers/donorController');
+      await deleteDonor(selectedDonor.id);
+
+      // Log Delete Activity
+      import('../../../utils/ActivityTracker').then(({ ActivityTracker }) => {
+        const getUser = () => {
+          const roles = ['staff', 'admin', 'super_admin'];
+          for (const r of roles) {
+            const s = sessionStorage.getItem(`user_${r}`) || localStorage.getItem(`user_${r}`);
+            if (s) return JSON.parse(s);
+          }
+          return null;
+        };
+        const user = getUser();
+        if (user && user.role === 'staff') {
+          ActivityTracker.addLog({
+            staffId: user.id,
+            actionType: 'DELETE_DONOR',
+            targetId: selectedDonor.id,
+            targetName: selectedDonor.fullName,
+            targetProfilePicture: selectedDonor.profilePicture, // Might be null but that's ok
+            details: 'Deleted donor record',
+            staff: user
+          });
+        }
+      });
+
+      toast.success(`Donor ${selectedDonor.fullName} ${t('deletedSuccessfully')}!`);
+      setDonors((prev) => prev.filter((d) => d.id !== selectedDonor.id));
       setSelectedDonor(null);
+    } catch (error) {
+      console.error("Delete failed", error);
+      toast.error("Failed to delete donor");
     }
   };
 
@@ -78,7 +118,7 @@ const DeleteDonorView = () => {
               <div>
                 <h3 className="text-2xl font-bold text-gray-900 mb-1">{selectedDonor.fullName}</h3>
                 <p className="text-sm text-red-600 font-semibold">{t('confirmDeleteMessage')}</p>
-                <p className="text-xs text-gray-500 mt-1">{t('donor')} ID: {selectedDonor.id}</p>
+                <p className="text-xs text-gray-500 mt-1">Donor ID: {selectedDonor.id}</p>
               </div>
             </div>
             <button
@@ -103,6 +143,7 @@ const DeleteDonorView = () => {
               <p className="text-sm text-gray-600">{t('emailAddress')}</p>
               <p className="font-medium">{selectedDonor.email || 'N/A'}</p>
             </div>
+
             <div>
               <p className="text-sm text-gray-600">{t('phoneNumber')}</p>
               <p className="font-medium">{selectedDonor.phone || 'N/A'}</p>
@@ -122,7 +163,7 @@ const DeleteDonorView = () => {
           </div>
           <div className="flex gap-4">
             <button
-              onClick={() => handleDelete(selectedDonor)}
+              onClick={handleDeleteClick}
               className="bg-red-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-red-700 transition"
             >
               {t('confirmDelete')}
@@ -134,6 +175,17 @@ const DeleteDonorView = () => {
               {t('cancel')}
             </button>
           </div>
+
+          <ConfirmationModal
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            onConfirm={executeDelete}
+            title={`${t('delete')} ${selectedDonor.fullName}`}
+            message={t('actionCannotBeUndone') || "Are you sure? This action cannot be undone."}
+            isDeleting={true}
+            confirmLabel={t('delete')}
+            cancelLabel={t('cancel')}
+          />
         </div>
       )}
 
@@ -148,11 +200,12 @@ const DeleteDonorView = () => {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('name')}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('emailAddress')}</th>
+
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('phoneNumber')}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('bloodType')}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('address')}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('totalDonations')}</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('action')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('actions')}</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -184,6 +237,7 @@ const DeleteDonorView = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{donor.email || 'N/A'}</td>
+
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{donor.phone || 'N/A'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       <span className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-semibold">
@@ -191,8 +245,8 @@ const DeleteDonorView = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500 max-w-xs">
-                      <div className="truncate" title={getFullAddress(donor)}>
-                        {formatLocation(donor)}
+                      <div className="truncate">
+                        {donor.locationDetails?.region || 'N/A'}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{donor.totalDonations}</td>

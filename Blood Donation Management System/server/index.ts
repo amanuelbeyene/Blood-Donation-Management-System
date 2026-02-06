@@ -8,6 +8,7 @@ import requestRoutes from './routes/requestRoutes';
 import donationRoutes from './routes/donationRoutes';
 import inventoryRoutes from './routes/inventoryRoutes';
 import adminRoutes from './routes/adminRoutes';
+import staffRoutes from './routes/staffRoutes';
 
 dotenv.config();
 
@@ -25,6 +26,8 @@ app.use('/api/requests', requestRoutes);
 app.use('/api/donations', donationRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/admins', adminRoutes);
+app.use('/api/staff', staffRoutes);
+
 
 app.get('/', (req, res) => {
     res.send('Blood Donation Management System API is running');

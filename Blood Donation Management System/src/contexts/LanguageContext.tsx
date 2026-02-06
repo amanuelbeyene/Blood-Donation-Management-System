@@ -12,6 +12,7 @@ type Translations = Record<
     findDonor: string;
     emergencyRequest: string;
     myRequests: string;
+    myDonations: string;
     login: string;
     logout: string;
     language: string;
@@ -124,6 +125,7 @@ type Translations = Record<
     registerDescription: string;
     uploadProfilePicture: string;
     completeRegistration: string;
+    accountCreatedSuccess: string;
     alreadyHaveAccount: string;
     editProfile: string;
     // Hospital
@@ -169,6 +171,7 @@ const translations: Translations = {
     findDonor: 'Find Donor',
     emergencyRequest: 'Emergency Request',
     myRequests: 'My Requests',
+    myDonations: 'My Donations',
     login: 'Log In',
     logout: 'Log Out',
     language: 'Language',
@@ -280,6 +283,7 @@ const translations: Translations = {
     registerDescription: 'Donors and hospitals can onboard in minutes.',
     uploadProfilePicture: 'Upload Profile Picture',
     completeRegistration: 'Complete Registration',
+    accountCreatedSuccess: 'Account created successfully!',
     alreadyHaveAccount: 'Already have an account?',
     editProfile: 'Edit Profile',
     // Hospital
@@ -322,6 +326,7 @@ const translations: Translations = {
     findDonor: 'ደጋፊ ፈልግ',
     emergencyRequest: 'አደጋ ጥያቄ',
     myRequests: 'ጥያቄዎቼ',
+    myDonations: 'ልገሳዎቼ',
     login: 'ግባ',
     logout: 'ውጣ',
     language: 'ቋንቋ',
@@ -433,6 +438,7 @@ const translations: Translations = {
     registerDescription: 'ደጋፊዎች እና ሆስፒታሎች በጥቂት ደቂቃዎች ውስጥ ሊመዘገቡ ይችላሉ።',
     uploadProfilePicture: 'መገለጫ ፎቶ ይጭኑ',
     completeRegistration: 'መመዝገብ ያጠናቅቁ',
+    accountCreatedSuccess: 'መለያ በተሳካ ሁኔታ ተፈጥሯል!',
     alreadyHaveAccount: 'አስቀድመው መለያ አሎት?',
     editProfile: 'መገለጫ አርትዕ',
     // Hospital

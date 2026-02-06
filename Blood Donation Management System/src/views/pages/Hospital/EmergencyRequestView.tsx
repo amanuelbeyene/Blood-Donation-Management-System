@@ -2,15 +2,22 @@ import { FormEvent, useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
 import { fetchHospitalById } from '../../../controllers/hospitalController';
+import { createRequest } from '../../../controllers/requestController';
+import { useToast } from '../../../contexts/ToastContext';
 
 const EmergencyRequestView = () => {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [isLocating, setIsLocating] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   const [formState, setFormState] = useState({
     bloodType: '',
     urgencyLevel: '',
+    unitsNeeded: '',
+    patientName: '',
+
+    // Hospital Info
 
     // Hospital Info
     hospitalName: '',
@@ -59,7 +66,7 @@ const EmergencyRequestView = () => {
 
   const handleGetLocation = () => {
     if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser');
+      toast.error('Geolocation is not supported by your browser');
       return;
     }
 
@@ -77,16 +84,38 @@ const EmergencyRequestView = () => {
       },
       (error) => {
         console.error('Error getting location:', error);
-        alert('Unable to retrieve your location');
+        toast.error('Unable to retrieve your location');
         setIsLocating(false);
       }
     );
   };
 
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    alert('Emergency request submitted! Backend integration coming soon.');
+
+    if (!user?.id) {
+      toast.error('You must be logged in to submit a request');
+      return;
+    }
+
+    try {
+      await createRequest({
+        hospitalId: user.id,
+        patient: formState.patientName || 'Anonymous',
+        bloodType: formState.bloodType as any,
+        urgency: formState.urgencyLevel as any, // 'emergency' | 'high' | 'standard'
+        unitsNeeded: parseInt(formState.unitsNeeded) || 1,
+        note: formState.additionalNotes,
+        status: 'pending'
+      });
+      toast.success('Emergency request submitted successfully!');
+      // Reset sensitive fields or redirect
+      setFormState(prev => ({ ...prev, bloodType: '', urgencyLevel: '', unitsNeeded: '', patientName: '', additionalNotes: '' }));
+    } catch (error) {
+      console.error("Failed to submit request", error);
+      toast.error('Failed to submit emergency request. Please try again.');
+    }
   };
 
   if (isLoading) {
@@ -146,10 +175,38 @@ const EmergencyRequestView = () => {
                 className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200"
               >
                 <option value="">Select urgency</option>
-                <option value="critical">Critical - Immediate Need</option>
-                <option value="urgent">Urgent - Within 24 hours</option>
-                <option value="moderate">Moderate - Within 3 days</option>
+                <option value="emergency">Critical - Immediate Need</option>
+                <option value="high">Urgent - Within 24 hours</option>
+                <option value="standard">Moderate - Within 3 days</option>
               </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Units Needed <span className="text-red-500">*</span>
+              </label>
+              <input
+                required
+                type="number"
+                min="1"
+                value={formState.unitsNeeded}
+                onChange={(e) => setFormState((prev) => ({ ...prev, unitsNeeded: e.target.value }))}
+                className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200"
+                placeholder="e.g. 2"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Patient Name (Optional)
+              </label>
+              <input
+                type="text"
+                value={formState.patientName}
+                onChange={(e) => setFormState((prev) => ({ ...prev, patientName: e.target.value }))}
+                className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200"
+                placeholder="Patient Name or ID"
+              />
             </div>
           </div>
 
@@ -193,8 +250,14 @@ const EmergencyRequestView = () => {
                   type="email"
                   value={formState.email}
                   onChange={(e) => setFormState(prev => ({ ...prev, email: e.target.value }))}
-                  className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200"
+                  className={`w-full rounded-lg border px-4 py-3 focus:outline-none focus:ring-2 transition ${formState.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formState.email)
+                    ? 'border-red-500 bg-red-50 focus:border-red-500 focus:ring-red-200'
+                    : 'border-slate-300 focus:border-red-500 focus:ring-red-200'
+                    }`}
                 />
+                {formState.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formState.email) && (
+                  <p className="text-red-500 text-xs mt-1">Example: amanuelbeyenee@gmail.com</p>
+                )}
               </div>
             </div>
           </div>

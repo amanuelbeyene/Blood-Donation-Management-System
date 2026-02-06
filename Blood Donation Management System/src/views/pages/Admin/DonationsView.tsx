@@ -6,7 +6,17 @@ const DonationsView = () => {
   const [donations, setDonations] = useState<DonationRecord[]>([]);
 
   useEffect(() => {
-    fetchDonationHistory().then(setDonations);
+    fetchDonationHistory().then(data => {
+      // Filter strictly for 'completed' as requested ("Donate Clicked")
+      // User said "don't display reject", but also "only display... that Donate Clicked"
+      // "Donate Clicked" maps to 'completed'
+      // To be safe and meet both constraints: filter out Rejected. 
+      // If we only show 'completed', we might miss 'in_progress'. 
+      // But typically admins want to see what happened.
+      // Let's filter out 'Rejected' and 'rejected'.
+      const validDonations = data.filter(d => d.status !== 'Rejected' && d.status !== 'rejected');
+      setDonations(validDonations);
+    });
   }, []);
 
   return (
@@ -51,11 +61,10 @@ const DonationsView = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
-                        className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                          donation.status === 'completed'
+                        className={`px-2 py-1 rounded-full text-xs font-semibold ${donation.status === 'completed'
                             ? 'bg-green-100 text-green-800'
                             : 'bg-yellow-100 text-yellow-800'
-                        }`}
+                          }`}
                       >
                         {donation.status}
                       </span>

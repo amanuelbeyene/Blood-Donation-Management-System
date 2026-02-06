@@ -1,82 +1,114 @@
-import { useState, FormEvent } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import axios from 'axios';
 
-const ForgotPasswordView = () => {
+const ForgotPasswordView: React.FC = () => {
+    const [identifier, setIdentifier] = useState('');
+    const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+    const [message, setMessage] = useState('');
     const navigate = useNavigate();
-    const [email, setEmail] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isSent, setIsSent] = useState(false);
 
-    const handleSubmit = async (e: FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setIsSubmitting(true);
+        setStatus('loading');
+        setMessage('');
 
-        // Simulate API call
-        setTimeout(() => {
-            setIsSubmitting(false);
-            setIsSent(true);
-        }, 1500);
+        try {
+            await axios.post('http://localhost:5000/api/auth/forgot-password', { identifier });
+            setStatus('success');
+            setMessage('OTP sent successfully. Redirecting...');
+
+            // Redirect to Verify OTP page after a short delay
+            setTimeout(() => {
+                navigate('/verify-otp', { state: { identifier } });
+            }, 1000);
+
+        } catch (error: any) {
+            setStatus('error');
+            setMessage(error.response?.data?.message || 'An error occurred. Please try again.');
+        }
     };
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-[#fff5f8] px-4">
-            <div className="w-full max-w-md rounded-3xl bg-white p-10 shadow-card">
-                <div className="mb-6 text-center">
-                    <h1 className="text-3xl font-semibold text-slate-900">Forgot Password?</h1>
-                    <p className="mt-2 text-sm text-slate-500">
-                        Enter your email address to get the password reset link.
-                    </p>
-                </div>
+        <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+            <div className="sm:mx-auto sm:w-full sm:max-w-md">
+                <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+                    Forgot your password?
+                </h2>
+                <p className="mt-2 text-center text-sm text-gray-600">
+                    Enter your email address or phone number and we'll send you an OTP code.
+                </p>
+            </div>
 
-                {isSent ? (
-                    <div className="text-center">
-                        <div className="mb-6 flex justify-center">
-                            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-                                <svg className="h-8 w-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                </svg>
+            <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+                <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+                    <form className="space-y-6" onSubmit={handleSubmit}>
+                        <div>
+                            <label htmlFor="identifier" className="block text-sm font-medium text-gray-700">
+                                Email Address or Phone Number
+                            </label>
+                            <div className="mt-1">
+                                <input
+                                    id="identifier"
+                                    name="identifier"
+                                    type="text"
+                                    required
+                                    value={identifier}
+                                    onChange={(e) => setIdentifier(e.target.value)}
+                                    placeholder="e.g. user@example.com or 0911223344"
+                                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm"
+                                />
                             </div>
                         </div>
-                        <h3 className="text-xl font-medium text-slate-900">Check your email</h3>
-                        <p className="mt-2 text-sm text-slate-500 mb-6">
-                            We have sent a password reset link to <span className="font-semibold text-slate-900">{email}</span>
-                        </p>
-                        <button
-                            onClick={() => navigate('/login')}
-                            className="w-full rounded-2xl bg-primary py-3 text-sm font-semibold text-white hover:bg-red-700 transition"
-                        >
-                            Back to Login
-                        </button>
-                    </div>
-                ) : (
-                    <form onSubmit={handleSubmit} className="space-y-6">
+
+                        {status === 'error' && (
+                            <div className="rounded-md bg-red-50 p-4">
+                                <div className="flex">
+                                    <div className="flex-shrink-0">
+                                        <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                        </svg>
+                                    </div>
+                                    <div className="ml-3">
+                                        <h3 className="text-sm font-medium text-red-800">Error</h3>
+                                        <div className="mt-2 text-sm text-red-700">
+                                            <p>{message}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         <div>
-                            <label className="text-sm font-medium text-slate-600">Email Address</label>
-                            <input
-                                required
-                                type="email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition"
-                                placeholder="name@example.com"
-                            />
-                        </div>
-
-                        <button
-                            type="submit"
-                            disabled={isSubmitting}
-                            className="w-full rounded-2xl bg-primary py-3 text-sm font-semibold text-white disabled:opacity-70 hover:bg-red-700 transition shadow-lg shadow-primary/20"
-                        >
-                            {isSubmitting ? 'Sending Link...' : 'Send Reset Link'}
-                        </button>
-
-                        <div className="text-center">
-                            <NavLink to="/login" className="text-sm font-medium text-slate-500 hover:text-primary transition">
-                                Back to Login
-                            </NavLink>
+                            <button
+                                type="submit"
+                                disabled={status === 'loading' || status === 'success'}
+                                className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 ${status === 'loading' || status === 'success' ? 'opacity-75 cursor-not-allowed' : ''}`}
+                            >
+                                {status === 'loading' ? 'Sending...' : status === 'success' ? 'Sent!' : 'Send OTP'}
+                            </button>
                         </div>
                     </form>
-                )}
+
+                    <div className="mt-6">
+                        <div className="relative">
+                            <div className="absolute inset-0 flex items-center">
+                                <div className="w-full border-t border-gray-300" />
+                            </div>
+                            <div className="relative flex justify-center text-sm">
+                                <span className="px-2 bg-white text-gray-500">
+                                    Or
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="mt-6 flex justify-center">
+                            <Link to="/login" className="text-sm font-medium text-red-600 hover:text-red-500">
+                                Back to Login
+                            </Link>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     );

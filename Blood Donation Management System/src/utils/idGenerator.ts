@@ -15,3 +15,9 @@ export const generateHospitalId = (): string => {
     const randomNum = Math.floor(100000 + Math.random() * 900000);
     return `HSP-${randomNum}`;
 };
+
+export const generateDonationId = (): string => {
+    // Generate a random 6-digit number
+    const randomNum = Math.floor(100000 + Math.random() * 900000);
+    return `DON-${randomNum}`;
+};

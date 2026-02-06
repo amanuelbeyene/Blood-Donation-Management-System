@@ -1,14 +1,12 @@
 import AppRoutes from './routes/AppRoutes';
+import { ToastProvider } from './contexts/ToastContext';
 
-const App = () => <AppRoutes />;
+const App = () => {
+  return (
+    <ToastProvider>
+      <AppRoutes />
+    </ToastProvider>
+  );
+};
 
 export default App;
-
-/* 
-// App.tsx
-import AppRoutes from './routes/AppRoutes';
-
-export default function App() {
-  return <AppRoutes />;
-}
-  */

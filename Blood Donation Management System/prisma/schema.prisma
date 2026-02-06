@@ -8,124 +8,114 @@ datasource db {
 }
 
 model Donor {
-  id             String    @id @default(uuid())
-  fullName       String
-  email          String    @unique
-  phone          String
-  bloodType      String
-  birthDate      DateTime?
-  age            Int?
-  gender         String?
-  medicalCondition String?
-  profilePicture String?
-  
-  // Detailed Location
-  region         String?
-  city           String?
-  subCity        String?
-  woreda         String?
-  kebele         String?
-  street         String?
-  homeNumber     String?
-  location       String? // Formatted or GPS string
-  
-  // GPS Location
-  latitude       Float?
-  longitude      Float?
-
-  // Additional Info
-  fanNumber      String?   @unique
-  hasDisability  String?
-  disabilityType String?
-
-  // Appointment Details
+  id                      String     @id @default(uuid())
+  fullName                String
+  email                   String     @unique
+  phone                   String
+  bloodType               String
+  birthDate               DateTime?
+  age                     Int?
+  gender                  String?
+  medicalCondition        String?
+  profilePicture          String?
+  region                  String?
+  city                    String?
+  subCity                 String?
+  woreda                  String?
+  kebele                  String?
+  street                  String?
+  homeNumber              String?
+  location                String?
+  latitude                Float?
+  longitude               Float?
+  fanNumber               String?    @unique
+  hasDisability           String?
+  disabilityType          String?
   donationAppointmentDate DateTime?
-  appointmentRegion      String?
-  appointmentPlace       String?
-  appointmentTime        String?
-
-  lotteryId      String?
-  status         String    @default("Pending")
-  rejectionReason String?
-
-  // System Stats
-  lastDonation   DateTime?
-  availability   String?   @default("ready")
-  totalDonations Int       @default(0)
-  impactScore    Int       @default(0)
-  donations      Donation[]
-  
-  // Auth
-  username       String?   @unique
-  password       String?
-  createdAt      DateTime  @default(now())
+  appointmentRegion       String?
+  appointmentPlace        String?
+  appointmentTime         String?
+  lotteryId               String?
+  status                  String     @default("Pending")
+  rejectionReason         String?
+  lastDonation            DateTime?
+  availability            String?    @default("ready")
+  totalDonations          Int        @default(0)
+  impactScore             Int        @default(0)
+  username                String?    @unique
+  password                String?
+  createdAt               DateTime   @default(now())
+  maritalStatus           String?
+  weight                  Int?
+  idCardBack              String?
+  idCardFront             String?
+  donationStatus          String?    @default("Pending")
+  resetPasswordExpires    DateTime?
+  resetPasswordToken      String?
+  donations               Donation[]
 }
 
 model Hospital {
-  id        String    @id @default(uuid())
-  name      String
-  email     String    @unique
-  phone     String
-  
-   // Contact
-  contactDoctorName  String?
-  contactDoctorPhone String?
-  
-  // Location
-  region    String?
-  city      String?
-  subCity   String?
-  woreda    String?
-  kebele    String?
-  street    String?
-  location  String?
-
-  // GPS Location
-  latitude  Float?
-  longitude Float?
-  
-  // License & Type
-  licenseName   String?
-  licenseNumber String?
-  hospitalType  String? // 'Government Hospital' | 'Non-Government Hospital'
-  
-  // Auth
-  username      String?   @unique
-  password      String?
-  
-  profilePicture String?
-  status         String @default("Pending") // Pending approval
-  rejectionReason String?
-  
-  createdAt     DateTime  @default(now())
-
-  requests  Request[]
-  donations Donation[]
+  id                   String     @id @default(uuid())
+  name                 String
+  email                String     @unique
+  phone                String
+  contactDoctorName    String?
+  contactDoctorPhone   String?
+  region               String?
+  city                 String?
+  subCity              String?
+  woreda               String?
+  kebele               String?
+  street               String?
+  location             String?
+  latitude             Float?
+  longitude            Float?
+  licenseName          String?
+  licenseNumber        String?
+  hospitalType         String?
+  username             String?    @unique
+  password             String?
+  profilePicture       String?
+  status               String     @default("Pending")
+  rejectionReason      String?
+  createdAt            DateTime   @default(now())
+  landline             String
+  businessLicenseImage String?
+  fanNumber            String?    @unique
+  idCardBack           String?
+  idCardFront          String?
+  resetPasswordExpires DateTime?
+  resetPasswordToken   String?
+  donations            Donation[]
+  requests             Request[]
 }
 
 model Request {
-  id          String   @id @default(uuid())
-  hospital    Hospital @relation(fields: [hospitalId], references: [id])
-  hospitalId  String
-  patient     String?
-  bloodType   String
-  urgency     String
-  unitsNeeded Int
-  status      String
-  requestedAt DateTime @default(now())
-  createdAt   DateTime @default(now())
+  id              String   @id @default(uuid())
+  hospitalId      String
+  patient         String?
+  bloodType       String
+  urgency         String
+  unitsNeeded     Int
+  status          String
+  requestedAt     DateTime @default(now())
+  createdAt       DateTime @default(now())
+  rejectionReason String?
+  note            String?
+  hospital        Hospital @relation(fields: [hospitalId], references: [id])
 }
 
 model Donation {
-  id           String   @id @default(uuid())
-  donor        Donor    @relation(fields: [donorId], references: [id])
+  id           String    @id @default(uuid())
   donorId      String
-  hospital     Hospital @relation(fields: [hospitalId], references: [id])
-  hospitalId   String
+  hospitalId   String?
   units        Int
-  donationDate DateTime @default(now())
+  donationDate DateTime  @default(now())
   status       String
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
+  donor        Donor     @relation(fields: [donorId], references: [id])
+  hospital     Hospital? @relation(fields: [hospitalId], references: [id])
 }
 
 model Inventory {
@@ -138,31 +128,84 @@ model Inventory {
 }
 
 model Admin {
-  id        String   @id @default(uuid())
-  username  String   @unique
-  password  String
-  fullName  String
-  email     String   @unique
-  phone     String?
-  role      String   @default("admin") // 'admin' or 'super_admin'
-  
-  // Profile & Status
-  profilePicture String?
-  status         String    @default("active") // 'active' | 'inactive'
-  
-  // Address / Location
-  region         String?
-  city           String?
-  subCity        String?
-  woreda         String?
-  kebele         String?
-  street         String?
-  homeNumber     String?
-  
-  // GPS
-  location       String?   // GPS string if needed
-  latitude       Float?
-  longitude      Float?
+  id                   String             @id @default(uuid())
+  username             String             @unique
+  password             String
+  fullName             String
+  email                String             @unique
+  phone                String?
+  role                 String             @default("admin")
+  profilePicture       String?
+  status               String             @default("active")
+  region               String?
+  city                 String?
+  subCity              String?
+  woreda               String?
+  kebele               String?
+  street               String?
+  homeNumber           String?
+  location             String?
+  latitude             Float?
+  longitude            Float?
+  createdAt            DateTime           @default(now())
+  age                  Int?
+  birthDate            DateTime?
+  bloodType            String?
+  fanNumber            String?
+  gender               String?
+  landline             String
+  maritalStatus        String?
+  idCardBack           String?
+  idCardFront          String?
+  resetPasswordExpires DateTime?
+  resetPasswordToken   String?
+  activityLogs         AdminActivityLog[]
+}
 
-  createdAt DateTime @default(now())
+model Staff {
+  id                   String    @id @default(uuid())
+  username             String    @unique
+  password             String
+  fullName             String
+  email                String    @unique
+  phone                String?
+  role                 String    @default("Staff")
+  profilePicture       String?
+  status               String    @default("active")
+  bloodType            String?
+  birthDate            DateTime?
+  age                  Int?
+  maritalStatus        String?
+  fanNumber            String?
+  region               String?
+  city                 String?
+  subCity              String?
+  woreda               String?
+  kebele               String?
+  street               String?
+  homeNumber           String?
+  location             String?
+  latitude             Float?
+  longitude            Float?
+  medicalCondition     String?
+  hasDisability        String?
+  disabilityType       String?
+  createdAt            DateTime  @default(now())
+  gender               String?
+  landline             String
+  idCardBack           String?
+  idCardFront          String?
+  resetPasswordExpires DateTime?
+  resetPasswordToken   String?
+}
+
+model AdminActivityLog {
+  id         String   @id @default(uuid())
+  adminId    String
+  actionType String
+  targetId   String
+  targetName String
+  details    String?
+  createdAt  DateTime @default(now())
+  admin      Admin    @relation(fields: [adminId], references: [id])
 }

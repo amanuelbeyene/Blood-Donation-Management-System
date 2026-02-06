@@ -1,15 +1,44 @@
-
-import { useMockData } from '../../../contexts/MockDataContext';
+import { useState, useEffect } from 'react';
+import { fetchDonors } from '../../../controllers/donorController';
+import { Donor } from '../../../models/Donor';
 
 const ApproveDonorView = () => { // "Approved Donors"
-  const { donors } = useMockData();
+  const [donors, setDonors] = useState<Donor[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadDonors();
+  }, []);
+
+  const loadDonors = async () => {
+    try {
+      setLoading(true);
+      const data = await fetchDonors();
+      setDonors(data);
+    } catch (error) {
+      console.error("Failed to load donors", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Filter for Active (Approved) donors
-  const approvedDonors = donors.filter(d => d.status === 'Active');
+  const approvedDonors = donors.filter(d => d.status?.toLowerCase() === 'active');
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-900">Approved Donors</h2>
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-900">Approved Donors</h2>
+        <button
+          onClick={loadDonors}
+          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center gap-2"
+        >
+          <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          Refresh
+        </button>
+      </div>
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         {approvedDonors.length === 0 ? (
           <div className="p-6 text-center text-gray-500">No approved donors found.</div>

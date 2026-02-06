@@ -3,9 +3,28 @@ import prisma from '../config/prisma';
 
 export const getInventory = async (req: Request, res: Response): Promise<void> => {
     try {
-        const inventory = await prisma.inventory.findMany();
+        let inventory = await prisma.inventory.findMany();
+        const allBloodTypes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+
+        // Check if we need to seed
+        const missingTypes = allBloodTypes.filter(type => !inventory.some(i => i.bloodType === type));
+
+        if (missingTypes.length > 0) {
+            // Seed missing types
+            await prisma.inventory.createMany({
+                data: missingTypes.map(type => ({
+                    bloodType: type,
+                    unitsAvailable: 0,
+                    criticalThreshold: 10
+                }))
+            });
+            // Re-fetch
+            inventory = await prisma.inventory.findMany();
+        }
+
         res.json(inventory);
     } catch (error) {
+        console.error("Get Inventory Error", error);
         res.status(500).json({ message: 'Failed to fetch inventory' });
     }
 };

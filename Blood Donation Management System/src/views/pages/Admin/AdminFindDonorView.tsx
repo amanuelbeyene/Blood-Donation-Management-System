@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { fetchDonors } from '../../../controllers/donorController';
 import type { Donor, BloodType } from '../../../models/Donor';
 import { useLanguage } from '../../../contexts/LanguageContext';
+import { useToast } from '../../../contexts/ToastContext';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -74,6 +75,7 @@ const MapUpdater = ({ donors, focusedLocation }: { donors: Donor[]; focusedLocat
 
 const AdminFindDonorView = () => {
   const { t } = useLanguage();
+  const { toast } = useToast();
   const [donors, setDonors] = useState<Donor[]>([]);
   const [searchName, setSearchName] = useState('');
   const [searchPhone, setSearchPhone] = useState('');
@@ -86,7 +88,9 @@ const AdminFindDonorView = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   useEffect(() => {
-    fetchDonors().then(setDonors);
+    fetchDonors().then(data => {
+      setDonors(data.filter(d => d.status === 'Active'));
+    });
   }, []);
 
   const filtered = useMemo(() => {
@@ -277,7 +281,7 @@ const AdminFindDonorView = () => {
                           if (donor.phone) {
                             window.location.href = `tel:${donor.phone}`;
                           } else {
-                            alert('No phone number available');
+                            toast.error('No phone number available');
                           }
                         }}
                         className="text-blue-600 hover:text-blue-800 font-semibold text-sm hover:underline"
